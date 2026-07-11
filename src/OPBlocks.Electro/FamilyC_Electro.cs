@@ -54,6 +54,9 @@ namespace OPBlocks.Electro
             double eff = R("CurrentEfficiency") / 100.0;
             double saltMove = ProcessOps.FaradayMoles(current, (int)Math.Round(R("IonValence")), eff) * I("CellPairs");
             double saltDil = ProcessOps.Sum(df) - df[wi];
+            if (saltDil <= 1e-12)
+                ReportWarning("The diluate feed contains no dissolved species besides water — nothing to transfer. " +
+                              "Add the salt/ions to the diluate stream composition.");
             saltMove = Math.Min(saltMove, saltDil * 0.98);
             double waterMove = Math.Min(saltMove * R("WaterTransport"), df[wi] * 0.5);
 
@@ -115,6 +118,10 @@ namespace OPBlocks.Electro
             double[] df = dIn.GetOverallMoleFlows(); double[] cf = cIn.GetOverallMoleFlows();
             double frac = R("RemovalEfficiency") / 100.0;
 
+            if (ProcessOps.Sum(df) - df[wi] <= 1e-12)
+                ReportWarning("The dilute feed contains no ions besides water — the product equals the feed. " +
+                              "Add the dissolved species to the stream composition.");
+
             var dof = (double[])df.Clone(); var cof = (double[])cf.Clone();
             for (int i = 0; i < df.Length; i++)
                 if (i != wi) { double m = df[i] * frac; dof[i] -= m; cof[i] += m; }
@@ -168,6 +175,9 @@ namespace OPBlocks.Electro
             double[] f = feed.GetOverallMoleFlows(); double Tk = feed.Temperature, p = feed.Pressure;
             double saltFeed = ProcessOps.Sum(f) - f[wi];
 
+            if (saltFeed <= 1e-12)
+                ReportWarning("The feed contains no dissolved species besides water — nothing to remove. " +
+                              "Add the salt/ions to the feed stream composition.");
             double removedMgS = R("SAC") * (R("ElectrodeMass") * 1000.0) / R("CycleTime"); // mg/s
             double removedMolS = Math.Min(removedMgS / 58440.0, saltFeed * 0.95);           // as NaCl
             double rec = R("WaterRecovery") / 100.0;
@@ -240,11 +250,19 @@ namespace OPBlocks.Electro
             double[] f = bIn.GetOverallMoleFlows(); double Tk = bIn.Temperature, p = bIn.Pressure;
 
             double eff = R("CurrentEfficiency") / 100.0;
-            double cl2Mol = ProcessOps.FaradayMoles(R("Current"), 2, eff);   // 2 e- per Cl2
+            double cl2Faradaic = ProcessOps.FaradayMoles(R("Current"), 2, eff); // 2 e- per Cl2
+            // Production can never exceed the NaCl actually fed (2 NaCl per Cl2) —
+            // otherwise chlorine appears from nothing and the mass balance breaks.
+            double cl2Mol = Math.Min(cl2Faradaic, f[naclI] * 0.99 / 2.0);
+            if (cl2Mol < cl2Faradaic * 0.999)
+                ReportWarning(string.Format(
+                    "Brine-limited operation: the feed supplies only enough NaCl for {0:0.####} mol/s Cl2 " +
+                    "(the applied current could produce {1:0.####} mol/s). Increase the brine feed or reduce the current.",
+                    cl2Mol, cl2Faradaic));
             double h2Mol = cl2Mol;                                            // 1 H2 per Cl2
             double naohMol = 2 * cl2Mol;                                      // 2 NaOH per Cl2
-            double naclCons = Math.Min(2 * cl2Mol, f[naclI] * 0.99);          // 2 NaCl per Cl2
-            double waterMove = naohMol * R("WaterTransport");
+            double naclCons = 2 * cl2Mol;                                     // 2 NaCl per Cl2
+            double waterMove = Math.Min(naohMol * R("WaterTransport"), f[wi] * 0.9);
 
             var depF = (double[])f.Clone();
             depF[naclI] -= naclCons;

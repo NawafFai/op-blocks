@@ -52,12 +52,23 @@ namespace OPBlocks.Energy
             double[] f = feed.GetOverallMoleFlows(); double Tk = feed.Temperature, p = feed.Pressure;
 
             double current = R("CurrentDensity") * R("CellArea") * 1e4;          // A (per cell)
-            double h2Mol = Math.Min(ProcessOps.FaradayMoles(current, 2, R("FaradaicEff") / 100.0) * I("CellCount"), f[wi] * 0.99);
+            double h2Faradaic = ProcessOps.FaradayMoles(current, 2, R("FaradaicEff") / 100.0) * I("CellCount");
+            double h2Mol = Math.Min(h2Faradaic, f[wi] * 0.99);
+            if (h2Mol < h2Faradaic * 0.999)
+                ReportWarning(string.Format(
+                    "Water-limited operation: the feed supplies water for only {0:0.####} mol/s H2 " +
+                    "(the stack current could produce {1:0.####} mol/s). Increase the water feed.",
+                    h2Mol, h2Faradaic));
             double o2Mol = h2Mol / 2.0;
             double excessWater = f[wi] - h2Mol;
 
             var h2F = new double[f.Length]; h2F[h2i] = h2Mol;
-            var o2F = new double[f.Length]; o2F[o2i] = o2Mol; if (excessWater > 0) o2F[wi] = excessWater;
+            // Everything the feed carried besides the consumed water leaves with
+            // the anolyte/O2 side — dropping it would leak mass for feeds that
+            // carry ions or additives (user-freedom rule).
+            var o2F = (double[])f.Clone();
+            o2F[wi] = Math.Max(0, excessWater);
+            o2F[o2i] += o2Mol;
             h2.SetOutletTP(h2F, Tk, p);
             o2.SetOutletTP(o2F, Tk, p);
 
@@ -116,7 +127,13 @@ namespace OPBlocks.Energy
             double[] f = feed.GetOverallMoleFlows(); double Tk = feed.Temperature, p = feed.Pressure;
 
             double current = R("CurrentDensity") * R("CellArea") * 1e4;
-            double h2Mol = Math.Min(ProcessOps.FaradayMoles(current, 2, R("FaradaicEff") / 100.0) * I("CellCount"), f[wi] * 0.99);
+            double h2Faradaic = ProcessOps.FaradayMoles(current, 2, R("FaradaicEff") / 100.0) * I("CellCount");
+            double h2Mol = Math.Min(h2Faradaic, f[wi] * 0.99);
+            if (h2Mol < h2Faradaic * 0.999)
+                ReportWarning(string.Format(
+                    "Water-limited operation: the feed supplies water for only {0:0.####} mol/s H2 " +
+                    "(the stack current could produce {1:0.####} mol/s). Increase the water feed.",
+                    h2Mol, h2Faradaic));
             double o2Mol = h2Mol / 2.0;
             double excessWater = f[wi] - h2Mol;
 
@@ -174,9 +191,16 @@ namespace OPBlocks.Energy
             double[] hf = hIn.GetOverallMoleFlows(); double[] af = aIn.GetOverallMoleFlows();
 
             double util = R("Utilization") / 100.0;
-            double h2Cons = hf[h2i] * util;
-            double o2Cons = Math.Min(h2Cons / 2.0, af[o2i]);
-            h2Cons = o2Cons * 2.0;                     // limited by available O2
+            double h2Want = hf[h2i] * util;
+            double o2Cons = Math.Min(h2Want / 2.0, af[o2i]);
+            double h2Cons = o2Cons * 2.0;              // limited by available O2
+            if (h2Cons < h2Want * 0.999)
+                ReportWarning(string.Format(
+                    "Air-limited operation: the air feed supplies oxygen for only {0:0.####} mol/s H2 " +
+                    "(utilization asked for {1:0.####} mol/s). Increase the air flow.",
+                    h2Cons, h2Want));
+            if (hf[h2i] <= 1e-15)
+                ReportWarning("The fuel feed carries no hydrogen flow — set the H2 amount in the HydrogenIn stream.");
             double waterProd = h2Cons;
 
             var exF = new double[hf.Length];

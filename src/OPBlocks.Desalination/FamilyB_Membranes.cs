@@ -20,9 +20,11 @@ namespace OPBlocks.Desalination
         public ReverseOsmosis() : base()
         {
             ComponentName = "OP-RO"; ComponentDescription = "Reverse Osmosis";
+            // Outlet order = flowsheet anchor order (top first): brine continues
+            // on top, product water is drawn off below — standard PFD convention.
             AddMaterialPort("Feed", "Pressurised feed", CapePortDirection.CAPE_INLET);
+            AddMaterialPort("Concentrate", "Concentrate / brine (reject)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Permeate", "Permeate (product water)", CapePortDirection.CAPE_OUTLET);
-            AddMaterialPort("Concentrate", "Concentrate (reject)", CapePortDirection.CAPE_OUTLET);
             AddRealParameter("Area", "Total membrane area", 40, 0.1, 1e5, "m2");
             AddRealParameter("WaterPermA", "Water permeability A", 1.0, 0.05, 20, "L/m2/h/bar");
             AddRealParameter("SaltRejection", "Observed salt rejection", 99.0, 50, 99.9, "%");
@@ -88,8 +90,8 @@ namespace OPBlocks.Desalination
         {
             ComponentName = "OP-NF"; ComponentDescription = "Nanofiltration";
             AddMaterialPort("Feed", "Feed", CapePortDirection.CAPE_INLET);
+            AddMaterialPort("Concentrate", "Concentrate (reject)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Permeate", "Permeate", CapePortDirection.CAPE_OUTLET);
-            AddMaterialPort("Concentrate", "Concentrate", CapePortDirection.CAPE_OUTLET);
             AddRealParameter("Area", "Membrane area", 40, 0.1, 1e5, "m2");
             AddRealParameter("WaterPermA", "Water permeability A", 6.0, 0.5, 30, "L/m2/h/bar");
             AddRealParameter("SaltRejection", "Rejection (multivalent)", 90.0, 20, 99, "%");
@@ -147,8 +149,8 @@ namespace OPBlocks.Desalination
         {
             ComponentName = "OP-UF"; ComponentDescription = "Ultrafiltration";
             AddMaterialPort("Feed", "Feed", CapePortDirection.CAPE_INLET);
+            AddMaterialPort("Retentate", "Retentate (reject)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Permeate", "Permeate", CapePortDirection.CAPE_OUTLET);
-            AddMaterialPort("Retentate", "Retentate", CapePortDirection.CAPE_OUTLET);
             AddRealParameter("Area", "Membrane area", 40, 0.1, 1e5, "m2");
             AddRealParameter("Permeability", "Permeability", 100, 5, 1000, "L/m2/h/bar");
             AddRealParameter("TMP", "Trans-membrane pressure", 1.0, 0.1, 5, "bar");

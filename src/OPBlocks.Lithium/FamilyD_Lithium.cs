@@ -56,6 +56,9 @@ namespace OPBlocks.Lithium
             double Tk = feed.Temperature, p = feed.Pressure;
 
             double feedLi = f[li];
+            if (feedLi <= 1e-15)
+                ReportWarning("The brine feed carries no lithium flow (the Li species is in the component list " +
+                              "but its amount in the feed stream is zero). Set the Li fraction in the feed composition.");
             double C_mgL = ProcessOps.MolarityMolL(feedLi, wi >= 0 ? f[wi] : ProcessOps.Sum(f)) * 6941.0;
             double qStar = R("QmaxLi") * R("Klangmuir") * C_mgL / (1.0 + R("Klangmuir") * C_mgL); // mg/g
             double massG = R("BedVolume") * R("SorbentDensity");

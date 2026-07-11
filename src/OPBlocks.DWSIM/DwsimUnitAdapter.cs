@@ -354,6 +354,17 @@ namespace OPBlocks.DWSIM
             ms.SpecType = ms.Phases[0].Properties.temperature.HasValue
                 ? StreamSpec.Temperature_and_Pressure
                 : StreamSpec.Pressure_and_Enthalpy;
+
+            // Run the stream's own native solve so per-phase compositions, phase
+            // fractions and enthalpies all match the new overall state. Without
+            // this the block's mid-calculation flash leaves phase-level data from
+            // a stale composition (users saw 1/3-1/3-1/3 phase fractions under a
+            // 0.9999/0.0001 overall — technically harmless, visibly wrong).
+            if (totalMol > 0)
+            {
+                try { ms.Calculate(); }
+                catch { /* downstream solver will flash it again; never fail the block */ }
+            }
         }
 
         /// <summary>
