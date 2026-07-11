@@ -1,1 +1,21 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="#0E7C66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9v22M15 9v22M21 9v22M27 9v22M33 9v22" stroke-dasharray="2 2"/><text x="6" y="36" font-size="7" stroke="none" fill="currentColor" font-family="system-ui">+</text><text x="31" y="36" font-size="8" stroke="none" fill="currentColor" font-family="system-ui">âˆ’</text></svg>
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<g stroke="#1B3A5C" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M2 24 H8" fill="none"/><path d="M2 40 H8" fill="none"/>
+<path d="M56 24 H62" fill="none"/><path d="M56 40 H62" fill="none"/>
+<rect x="8" y="14" width="48" height="36" rx="7" fill="#BFE3F5"/>
+<path d="M8 21 a7 7 0 0 1 7-7 h1 v36 h-1 a7 7 0 0 1 -7-7 z" fill="#29ABE2"/>
+<path d="M48 14 h1 a7 7 0 0 1 7 7 v22 a7 7 0 0 1 -7 7 h-1 z" fill="#29ABE2"/>
+<path d="M24 14 v36 M32 14 v36 M40 14 v36" fill="none" stroke-dasharray="4 3"/>
+<rect x="8" y="14" width="48" height="36" rx="7" fill="none"/>
+</g>
+<g stroke="#1B3A5C" stroke-width="2" stroke-linecap="round" fill="none">
+<path d="M19 6 v5 M16.5 8.5 h5"/>
+<path d="M42.5 8.5 h5"/>
+</g>
+<g fill="#1B3A5C">
+<circle cx="28" cy="26" r="1.7"/><circle cx="36" cy="38" r="1.7"/>
+</g>
+<g fill="#FFFFFF" stroke="#1B3A5C" stroke-width="1.3">
+<circle cx="28" cy="40" r="1.8"/><circle cx="36" cy="24" r="1.8"/>
+</g>
+</svg>

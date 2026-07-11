@@ -1,1 +1,45 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="#0E7C66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="14" width="24" height="12" rx="6"/><line x1="15" y1="14" x2="15" y2="26" stroke-dasharray="2.2 2.2"/><path d="M30 20h6M33 16.5l3.5 3.5-3.5 3.5"/><path d="M4 20h2"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- OP-RO — Reverse Osmosis. ONE PROCESS filled flat-vector style
+       (owner reference icon_reference_ro.png): body #BFE3F5, accent #29ABE2,
+       outline #1B3A5C (2.4px), rounded joins, white highlights.
+       Port stubs match the CAPE-OPEN anchors: Feed left-mid,
+       Concentrate right-upper, Permeate right-lower. -->
+  <g stroke="#1B3A5C" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- feed stub (left, mid height) -->
+    <path d="M2 30 H10" fill="none"/>
+    <!-- concentrate stub (right, upper) -->
+    <path d="M54 21 H62" fill="none"/>
+    <!-- permeate stub (right, lower) -->
+    <path d="M54 41 H62" fill="none"/>
+
+    <!-- main membrane pressure vessel (horizontal capsule) -->
+    <rect x="10" y="14" width="44" height="34" rx="8" fill="#BFE3F5"/>
+
+    <!-- permeate side rendered clean (white), under the divider -->
+    <path d="M26 48 L54 27 v13 a8 8 0 0 1 -8 8 z" fill="#FFFFFF" stroke="none"/>
+
+    <!-- cyan end-cap band, left -->
+    <path d="M10 22 a8 8 0 0 1 8-8 h4 v34 h-4 a8 8 0 0 1 -8-8 z" fill="#29ABE2"/>
+
+    <!-- diagonal membrane divider: feed/brine above, permeate below -->
+    <path d="M22 48 L54 24" fill="none"/>
+
+    <!-- vessel outline re-stroke so fills never cover it -->
+    <rect x="10" y="14" width="44" height="34" rx="8" fill="none"/>
+  </g>
+
+  <!-- rejected-salt dots on the feed side -->
+  <g fill="#1B3A5C">
+    <circle cx="30" cy="24" r="1.6"/>
+    <circle cx="38" cy="21" r="1.6"/>
+    <circle cx="28" cy="33" r="1.6"/>
+    <circle cx="37" cy="30" r="1.6"/>
+  </g>
+
+  <!-- white highlight ticks on the cyan cap -->
+  <g stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" fill="none">
+    <path d="M15 22 v10"/>
+    <path d="M19 20 v14"/>
+  </g>
+</svg>

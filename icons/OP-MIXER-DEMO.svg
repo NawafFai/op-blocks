@@ -1,19 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"
-     stroke="#0E7C66" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-  <!-- ONE PROCESS — OP-MIXER-DEMO : two feeds merge, one mixed outlet -->
-  <!-- inlet 1 -->
-  <path d="M5 19 H23"/>
-  <!-- inlet 2 -->
-  <path d="M5 45 H23"/>
-  <!-- converging necks -->
-  <path d="M23 19 L34 27"/>
-  <path d="M23 45 L34 37"/>
-  <!-- mixing chamber -->
-  <rect x="30" y="22" width="17" height="20" rx="7"/>
-  <!-- mixing swirl -->
-  <path d="M34 32 C36 27, 41 27, 43 32 C41 37, 36 37, 34 32 Z"
-        stroke-width="1.6" fill="#0E7C66" fill-opacity="0.12"/>
-  <!-- mixed outlet with arrowhead -->
-  <path d="M47 32 H58"/>
-  <path d="M53 27.5 L58 32 L53 36.5"/>
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<g stroke="#1B3A5C" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M2 20 H10" fill="none"/><path d="M2 44 H10" fill="none"/><path d="M54 32 H62" fill="none"/>
+<path d="M10 14 h16 l12 14 h16 v8 H38 L26 50 H10 a6 6 0 0 1 -6 -6 V20 a6 6 0 0 1 6 -6 z" fill="#BFE3F5"/>
+<path d="M38 28 h16 v8 H38 z" fill="#29ABE2"/>
+<path d="M10 14 h16 l12 14 h16 v8 H38 L26 50 H10 a6 6 0 0 1 -6 -6 V20 a6 6 0 0 1 6 -6 z" fill="none"/>
+</g>
+<g stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" fill="none">
+<path d="M9 19 h8"/><path d="M9 45 h8"/>
+</g>
 </svg>
