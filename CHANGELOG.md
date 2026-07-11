@@ -2,6 +2,22 @@
 
 ## v1.1 (in progress)
 
+### Priority 1B — Aspen Plus V14 custom icons: proven architectural limitation
+- Tested every Aspen V14 mechanism for custom CAPE-OPEN icons on the owner's
+  machine: Exchange Icon (single fixed icon, no effect), Add Selected to a
+  user library (disabled for CAPE-OPEN), a new ONE PROCESS .apm library
+  (nothing can be added to it), and Palette Categories (fixed list, no custom
+  tab). All documented with evidence in `docs/ASPEN_ICON_FINDING.md`.
+- Root cause: the CAPE-OPEN standard has no unit-operation icon interface;
+  Aspen draws all CAPE-OPEN units with its generic block icon and exposes no
+  per-CLSID override. Community custom-icon tooling (JUIcE) targets COFE/COCO,
+  not Aspen.
+- Delivered in Aspen (the host maximum): blocks in the CAPE-OPEN palette,
+  drag/drop/connect/run/delete, the branded in-process ONE PROCESS Edit
+  dialog, and ICapeUnitReport results. The full custom-icon-on-flowsheet
+  feature is delivered on DWSIM (P1A), where the host allows it.
+
+
 ### Priority 1A — DWSIM-native blocks with custom flowsheet icons
 - **New `OPBlocks.DWSIM.dll`**: all 25 blocks now ship as DWSIM-native external
   unit operations (`IExternalUnitOperation`, loaded from DWSIM's `unitops`
