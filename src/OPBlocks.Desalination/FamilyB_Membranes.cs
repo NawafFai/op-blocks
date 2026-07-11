@@ -46,10 +46,10 @@ namespace OPBlocks.Desalination
             var feed = RequireMaterial("Feed"); var perm = RequireMaterial("Permeate"); var conc = RequireMaterial("Concentrate");
             double[] f = feed.GetOverallMoleFlows(); int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double tK = feed.Temperature, p = feed.Pressure;
-            double saltMol = ProcessOps.Sum(f) - f[wi];
 
-            double molarity = ProcessOps.MolarityMolL(saltMol, f[wi]);
-            double piBar = ProcessOps.OsmoticBar(molarity, R("VantHoffI"), tK);
+            var osmNotes = new System.Collections.Generic.List<string>();
+            double piBar = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes);
+            foreach (string n in osmNotes) ReportWarning(n);
             double ndp = Math.Max(0, R("AppliedPressure") - piBar);
             double Jw = R("WaterPermA") * ndp;                    // L/m2/h
             if (ndp <= 0)
@@ -112,9 +112,15 @@ namespace OPBlocks.Desalination
             var feed = RequireMaterial("Feed"); var perm = RequireMaterial("Permeate"); var conc = RequireMaterial("Concentrate");
             double[] f = feed.GetOverallMoleFlows(); int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double tK = feed.Temperature, p = feed.Pressure;
-            double saltMol = ProcessOps.Sum(f) - f[wi];
-            double piBar = ProcessOps.OsmoticBar(ProcessOps.MolarityMolL(saltMol, f[wi]), R("VantHoffI"), tK) * 0.5; // partial rejection
-            double Jw = R("WaterPermA") * Math.Max(0, R("AppliedPressure") - piBar);
+            var osmNotes = new System.Collections.Generic.List<string>();
+            double piBar = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes) * 0.5; // partial rejection
+            foreach (string n in osmNotes) ReportWarning(n);
+            double ndp = Math.Max(0, R("AppliedPressure") - piBar);
+            if (ndp <= 0)
+                ReportWarning(string.Format(
+                    "No permeation: applied pressure ({0:0.#} bar) is at or below the effective osmotic pressure ({1:0.#} bar).",
+                    R("AppliedPressure"), piBar));
+            double Jw = R("WaterPermA") * ndp;
             double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, f[wi] * 0.95);
             double recovery = f[wi] > 0 ? permWaterMol / f[wi] : 0;
             double saltPass = 1.0 - R("SaltRejection") / 100.0;
@@ -220,9 +226,15 @@ namespace OPBlocks.Desalination
             double[] ff = fIn.GetOverallMoleFlows(); double[] dd = dIn.GetOverallMoleFlows();
             double Tf = fIn.Temperature, Td = dIn.Temperature, Pf = fIn.Pressure, Pd = dIn.Pressure;
 
-            double piFeed = ProcessOps.OsmoticBar(ProcessOps.MolarityMolL(ProcessOps.Sum(ff) - ff[wi], ff[wi]), R("VantHoffI"), Tf);
-            double piDraw = ProcessOps.OsmoticBar(ProcessOps.MolarityMolL(ProcessOps.Sum(dd) - dd[wi], dd[wi]), R("VantHoffI"), Td);
+            var osmNotes = new System.Collections.Generic.List<string>();
+            double piFeed = ProcessOps.OsmoticPressureBar(fIn, ff, wi, R("VantHoffI"), Tf, osmNotes);
+            double piDraw = ProcessOps.OsmoticPressureBar(dIn, dd, wi, R("VantHoffI"), Td, osmNotes);
+            foreach (string n in osmNotes) ReportWarning(n);
             double dPi = Math.Max(0, R("Reflection") * (piDraw - piFeed));
+            if (dPi <= 0)
+                ReportWarning(string.Format(
+                    "No water transfer: the draw solution's osmotic pressure ({0:0.#} bar) does not exceed the feed's ({1:0.#} bar). " +
+                    "The draw solution must be more concentrated than the feed.", piDraw, piFeed));
             double Jw = R("WaterPermA") * dPi;                                        // L/m2/h
             double waterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, ff[wi] * 0.9);
             double revSaltMol = R("SaltPermB") * R("Area") / 3600.0 / 0.0180153 * 0.05; // small reverse flux
@@ -278,10 +290,16 @@ namespace OPBlocks.Desalination
             double[] ff = fIn.GetOverallMoleFlows(); double[] dd = dIn.GetOverallMoleFlows();
             double Tf = fIn.Temperature, Td = dIn.Temperature, Pf = fIn.Pressure, Pd = dIn.Pressure;
 
-            double piFeed = ProcessOps.OsmoticBar(ProcessOps.MolarityMolL(ProcessOps.Sum(ff) - ff[wi], ff[wi]), R("VantHoffI"), Tf);
-            double piDraw = ProcessOps.OsmoticBar(ProcessOps.MolarityMolL(ProcessOps.Sum(dd) - dd[wi], dd[wi]), R("VantHoffI"), Td);
+            var osmNotes = new System.Collections.Generic.List<string>();
+            double piFeed = ProcessOps.OsmoticPressureBar(fIn, ff, wi, R("VantHoffI"), Tf, osmNotes);
+            double piDraw = ProcessOps.OsmoticPressureBar(dIn, dd, wi, R("VantHoffI"), Td, osmNotes);
+            foreach (string n in osmNotes) ReportWarning(n);
             double dP = R("AppliedPressure");
             double ndf = Math.Max(0, (piDraw - piFeed) - dP);                 // net driving pressure, bar
+            if (ndf <= 0)
+                ReportWarning(string.Format(
+                    "No power production: the salinity-gradient driving force (Δπ = {0:0.#} bar) does not exceed " +
+                    "the applied hydraulic pressure ({1:0.#} bar).", piDraw - piFeed, dP));
             double Jw = R("WaterPermA") * ndf;                                // L/m2/h
             double waterVolM3s = Jw * R("Area") / 1000.0 / 3600.0;            // m3/s
             double waterMol = Math.Min(waterVolM3s * 1000.0 / 0.0180153, ff[wi] * 0.9);

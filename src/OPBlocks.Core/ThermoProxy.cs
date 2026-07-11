@@ -124,6 +124,41 @@ namespace OPBlocks.Core
             Guard("TP flash", () => { _mo.CalcEquilibrium("TP", null); return 0; });
         }
 
+        /// <summary>
+        /// Liquid-phase activity coefficient of one component from the host
+        /// property package, or false when the package cannot supply it (ideal
+        /// packages, missing liquid phase, host quirks). Never throws — callers
+        /// fall back to an ideal estimate and say so in the report (§5 rule 5).
+        /// </summary>
+        public bool TryGetLiquidActivityCoefficient(int componentIndex, out double gamma)
+        {
+            gamma = 1.0;
+            string[] ids;
+            try { ids = _mo.ComponentIds; } catch { return false; }
+            if (componentIndex < 0 || ids == null || componentIndex >= ids.Length) return false;
+
+            foreach (string phase in new[] { "liquid", "Liquid", "Liquid1", "Overall" })
+            {
+                try
+                {
+                    try { _mo.CalcProp(new[] { "activityCoefficient" }, new[] { phase }, Mixture); }
+                    catch { /* some hosts compute on GetProp directly */ }
+                    double[] r = _mo.GetProp("activityCoefficient", phase, ids, Mixture, null);
+                    if (r != null && r.Length > componentIndex)
+                    {
+                        double g = r[componentIndex];
+                        if (!double.IsNaN(g) && !double.IsInfinity(g) && g > 0)
+                        {
+                            gamma = g;
+                            return true;
+                        }
+                    }
+                }
+                catch { /* try the next phase label */ }
+            }
+            return false;
+        }
+
         private double Scalar(string property, string basis)
         {
             double[] r = Guard(property, () => _mo.GetProp(property, Overall, null, Mixture, basis));

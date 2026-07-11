@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace OPBlocks.Core
 {
@@ -89,6 +90,76 @@ namespace OPBlocks.Core
         public static double OsmoticBar(double molarityMolL, double vantHoffI, double tempK)
         {
             return vantHoffI * molarityMolL * 0.0831446 * tempK;
+        }
+
+        private const double GasConstant = 8.314462618;      // J/mol/K
+        private const double WaterMolarVolume = 1.8068e-5;   // m3/mol (liquid, 25 C)
+
+        /// <summary>
+        /// Physical ceiling for reported osmotic pressure [bar]: saturated NaCl
+        /// brine is ~390 bar; anything above means the composition left the
+        /// validity range of an aqueous osmotic model.
+        /// </summary>
+        public const double OsmoticClampBar = 500.0;
+
+        /// <summary>
+        /// Osmotic pressure [bar] of the aqueous stream, valid for ANY user feed
+        /// (any salts, any concentration, any package — spec R4):
+        ///
+        ///  1. Preferred: π = −(RT/V̄w)·ln(a_w) with the water activity a_w = γ_w·x_w
+        ///     taken from the host property package (electrolyte packages give real
+        ///     brine behaviour here, e.g. Red Sea water compositions).
+        ///  2. Fallback (package cannot supply γ): ideal solution with the van 't
+        ///     Hoff factor, π = −i·(RT/V̄w)·ln(x_w) — correct in the dilute limit,
+        ///     stated in the report.
+        ///
+        /// Results are clamped to <see cref="OsmoticClampBar"/> with a warning
+        /// instead of ever reporting absurd numbers (a 50/50 water/salt feed used
+        /// to yield 272,000+ bar).
+        /// </summary>
+        public static double OsmoticPressureBar(
+            ThermoProxy stream, double[] moleFlows, int waterIndex,
+            double vantHoffI, double tempK, ICollection<string> warnings)
+        {
+            double total = Sum(moleFlows);
+            double xw = total > 1e-30 && waterIndex >= 0 ? moleFlows[waterIndex] / total : 0.0;
+            if (xw >= 1.0 - 1e-12) return 0.0;               // pure water
+            if (xw <= 1e-12)
+            {
+                if (warnings != null) warnings.Add(
+                    "Feed contains essentially no water — osmotic model not applicable; " +
+                    "osmotic pressure reported at the " + OsmoticClampBar + " bar validity ceiling.");
+                return OsmoticClampBar;
+            }
+
+            double rtOverVw = GasConstant * Math.Max(tempK, 1.0) / WaterMolarVolume; // Pa
+
+            double piPa;
+            double gammaW;
+            if (stream != null && stream.TryGetLiquidActivityCoefficient(waterIndex, out gammaW))
+            {
+                double aw = Clamp(gammaW * xw, 1e-12, 1.0);
+                piPa = -rtOverVw * Math.Log(aw);
+            }
+            else
+            {
+                piPa = -vantHoffI * rtOverVw * Math.Log(xw);
+                if (warnings != null) warnings.Add(
+                    "Osmotic pressure estimated from ideal solution × van 't Hoff factor " +
+                    "(the selected property package did not supply a water activity). " +
+                    "For brines, an electrolyte-capable package gives more accurate results.");
+            }
+
+            double piBar = piPa / 1e5;
+            if (piBar > OsmoticClampBar)
+            {
+                if (warnings != null) warnings.Add(string.Format(
+                    "Osmotic pressure estimate ({0:0} bar) exceeds the aqueous-model validity range — " +
+                    "clamped to {1:0} bar. Check the feed composition (water fraction {2:0.###}).",
+                    piBar, OsmoticClampBar, xw));
+                piBar = OsmoticClampBar;
+            }
+            return piBar;
         }
 
         /// <summary>Faraday constant [C/mol].</summary>
