@@ -261,6 +261,20 @@ namespace OPBlocks.DWSIM
 
             try
             {
+                // Friendlier than the generic CAPE-OPEN port message: name every
+                // missing connection at once, with direction, so the user fixes
+                // the flowsheet in one pass.
+                var missing = new List<string>();
+                foreach (UnitBase.PortInfo pi in inner.PortLayout)
+                {
+                    if (pi.IsEnergy) continue;
+                    if (pi.Port.connectedObject == null)
+                        missing.Add(pi.Name + (pi.IsInlet ? " (inlet)" : " (outlet)"));
+                }
+                if (missing.Count > 0)
+                    throw new Exception(inner.BlockCode + " needs a stream on every port. Missing: " +
+                                        string.Join(", ", missing) + ".");
+
                 string msg = "";
                 if (!inner.Validate(ref msg))
                     throw new Exception(string.IsNullOrEmpty(msg)

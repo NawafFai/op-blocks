@@ -181,6 +181,16 @@ namespace OPBlocks.DwsimHostTest
                 Check(Math.Abs(fIn - fConc - fVap) < 1e-4 * Math.Max(fIn, 1e-12),
                       "e2e: mass balance closes", "err=" + Math.Abs(fIn - fConc - fVap).ToString("0.#E+0"));
 
+                // Quantitative guard for the parameter-unit chain: with defaults
+                // (10,000 m2, 600 W/m2, air 30 C, RH 40%, wind 3 m/s, feed 30 C)
+                // the Dalton model gives ~0.24 kg/s evaporation. The v1.0 defect
+                // (DimensionedValue treating authored values as SI) fed the model
+                // -243 C air and produced ~0.34 kg/s — this catches any regression
+                // anywhere in the parameter->physics chain.
+                Check(fVap > 0.20 && fVap < 0.30,
+                      "e2e: evaporation rate quantitatively correct (~0.24 kg/s)",
+                      fVap.ToString("0.####") + " kg/s");
+
                 // results surfaced as host properties
                 var props = pondSim.GetProperties(global::DWSIM.Interfaces.Enums.PropertyType.RO);
                 Check(props.Length > 0, "e2e: result properties exposed", props.Length + " outputs");

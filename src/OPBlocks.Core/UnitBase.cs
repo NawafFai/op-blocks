@@ -311,12 +311,23 @@ namespace OPBlocks.Core
         /// <summary>
         /// Value of a real parameter as entered, in its own display unit (block physics
         /// define defaults in the unit they compute with, converting explicitly in code).
+        ///
+        /// IMPORTANT: reads the raw stored value, never CO-LaN's DimensionedValue.
+        /// RealParameter stores the constructor arguments verbatim but its
+        /// DimensionedValue getter re-converts them as if they were SI — for a
+        /// "bar" parameter authored as 55 it returns 55/1e5, for "C" it subtracts
+        /// 273.15. That silently corrupted every non-SI parameter in v1.0.
         /// </summary>
         protected double R(string name)
         {
             var p = FindParameter(name) as RealParameter;
             if (p == null) return 0.0;
-            try { return p.DimensionedValue; } catch { return 0.0; }
+            try
+            {
+                object v = ((ICapeParameter)p).value;
+                return v == null ? 0.0 : Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            catch { return 0.0; }
         }
 
         /// <summary>Value of an integer parameter.</summary>

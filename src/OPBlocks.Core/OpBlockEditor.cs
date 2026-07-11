@@ -206,8 +206,14 @@ namespace OPBlocks.Core
             if (p is RealParameter rp)
             {
                 unit = rp.Unit;
-                info = "range " + Trim(rp.LowerBound) + " … " + Trim(rp.UpperBound);
-                return NumericBox(p, rp.LowerBound, rp.UpperBound, isInteger: false);
+                // Read bounds through ICapeRealParameterSpec: it exposes the raw
+                // stored values. The public LowerBound/UpperBound getters convert
+                // them as if they were SI (a 5…120 bar range displays as
+                // 0.00005…0.0012 and rejects every legal entry).
+                var spec = (ICapeRealParameterSpec)p;
+                double lo = spec.LowerBound, hi = spec.UpperBound;
+                info = "range " + Trim(lo) + " … " + Trim(hi);
+                return NumericBox(p, lo, hi, isInteger: false);
             }
             if (p is IntegerParameter)
             {
