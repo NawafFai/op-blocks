@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>OPBlocks.Core</RootNamespace>
+    <AssemblyName>OPBlocks.Core</AssemblyName>
+    <!-- Core is COM-relevant infrastructure; blocks in other DLLs are the
+         registered COM types, so Core itself is not directly ComVisible. -->
+    <ComVisible>false</ComVisible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="CapeOpen">
+      <HintPath>..\..\libs\CapeOpen\CapeOpen.dll</HintPath>
+      <!-- Ship CapeOpen.dll next to the block DLLs so the host resolves it. -->
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+</Project>

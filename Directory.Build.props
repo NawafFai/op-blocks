@@ -1,0 +1,29 @@
+<Project>
+
+  <!-- Shared build settings for all OP-Blocks projects.
+       See docs/ARCHITECTURE.md for the toolchain rationale. -->
+  <PropertyGroup>
+    <Company>ONE PROCESS Simulation</Company>
+    <Product>ONE PROCESS Blocks</Product>
+    <Authors>ONE PROCESS Simulation</Authors>
+    <Copyright>Copyright (c) ONE PROCESS Simulation</Copyright>
+    <Version>1.0.0</Version>
+    <Deterministic>true</Deterministic>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <!-- AnyCPU (MSIL) so a single DLL registers under both the x86 and x64
+         COM hives (spec 3: missing bitness is the #1 "block not in palette" cause). -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <!-- net48 block DLLs are compiled with the .NET SDK, so pull the .NET Framework
+       reference assemblies from NuGet instead of requiring a targeting pack install. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

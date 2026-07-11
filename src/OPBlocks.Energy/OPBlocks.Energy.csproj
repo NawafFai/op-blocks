@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>OPBlocks.Energy</RootNamespace>
+    <AssemblyName>OPBlocks.Energy</AssemblyName>
+    <ComVisible>false</ComVisible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OPBlocks.Core\OPBlocks.Core.csproj" />
+    <Reference Include="CapeOpen"><HintPath>..\..\libs\CapeOpen\CapeOpen.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+</Project>

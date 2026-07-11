@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>OPBlocksManager</RootNamespace>
+    <AssemblyName>OPBlocksManager</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- AnyCPU: the Manager self-relaunches elevated and drives both the x64 and
+         x86 RegAsm, so it must not be pinned to one bitness. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="SharpVectors.Reloaded" Version="1.8.4" />
+  </ItemGroup>
+
+  <!-- Ship the equipment icons next to the Manager so it can render them. -->
+  <ItemGroup>
+    <None Include="..\..\icons\*.svg" Link="icons\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

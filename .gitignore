@@ -1,0 +1,24 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+
+# .NET / NuGet
+project.lock.json
+.vs/
+*.binlog
+
+# OP-Blocks runtime logs (spec §8.8)
+logs/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Build artifacts / packaged output
+build/
+installer/Output/
+blocks/
+icons/png/_rasterize.log
+

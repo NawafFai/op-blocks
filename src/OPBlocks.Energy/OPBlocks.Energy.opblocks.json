@@ -1,0 +1,11 @@
+{
+  "family": "Energy & Gas",
+  "dll": "OPBlocks.Energy.dll",
+  "blocks": [
+    { "code": "OP-PEM", "name": "PEM Electrolyzer", "clsid": "5cf6e601-c4b1-48cd-be66-54e7500f0626", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Splits water into green H2 and O2 (polarization + Faraday)." },
+    { "code": "OP-AEL", "name": "Alkaline Electrolyzer", "clsid": "a85ddf54-c98c-465f-9c91-dd94f61e51c3", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "KOH-based water electrolysis to H2 and O2." },
+    { "code": "OP-FC", "name": "PEM Fuel Cell", "clsid": "47412507-fbf7-4694-9311-3320f0c7d07d", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "H2 + air to electric power and water." },
+    { "code": "OP-RPB", "name": "Rotating Packed Bed (HiGee)", "clsid": "20916487-6782-448c-85e7-e93e1db3e632", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Centrifugal-field intensified gas absorption (e.g. CO2/MEA)." },
+    { "code": "OP-UVAOP", "name": "UV / Advanced Oxidation", "clsid": "71ab6cc5-95d4-4c8d-b45f-8623b9e47538", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "UV(+H2O2) destruction of trace contaminants; EEO." }
+  ]
+}

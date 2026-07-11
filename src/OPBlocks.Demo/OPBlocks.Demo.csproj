@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>OPBlocks.Demo</RootNamespace>
+    <AssemblyName>OPBlocks.Demo</AssemblyName>
+    <!-- Assembly is not ComVisible by default; the block class opts in per-type. -->
+    <ComVisible>false</ComVisible>
+    <!-- Emit the COM registration info; regasm reads the [Guid]/Cape* attributes. -->
+    <RegisterForComInterop>false</RegisterForComInterop>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OPBlocks.Core\OPBlocks.Core.csproj" />
+    <Reference Include="CapeOpen">
+      <HintPath>..\..\libs\CapeOpen\CapeOpen.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

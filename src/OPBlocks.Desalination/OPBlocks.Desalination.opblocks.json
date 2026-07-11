@@ -1,0 +1,16 @@
+{
+  "family": "Desalination",
+  "dll": "OPBlocks.Desalination.dll",
+  "blocks": [
+    { "code": "OP-EVAPPOND", "name": "Solar Evaporation Pond", "clsid": "23c4d15d-67f2-40f3-ac66-215bde083047", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Climate-driven brine concentration (Dalton-type evaporation flux)." },
+    { "code": "OP-MD", "name": "Membrane Distillation (DCMD)", "clsid": "091f27e3-70d1-4885-8032-0080c7b214b6", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Thermally-driven water-vapour transport across a hydrophobic membrane." },
+    { "code": "OP-MED", "name": "Multi-Effect Distillation", "clsid": "32e353bd-1854-447b-a49f-da2c22af130c", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Multi-effect evaporation reusing vapour as heat; GOR and distillate." },
+    { "code": "OP-MSF", "name": "Multi-Stage Flash", "clsid": "de8a249a-e088-4f5a-a8c7-73daf61dd337", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Staged flashing of recirculated brine at decreasing pressure." },
+    { "code": "OP-MVC", "name": "Mechanical Vapour Compression", "clsid": "3f1cc3f7-a38a-45f9-93a8-4962e02378e5", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Evaporator driven by mechanically-compressed vapour; electrical duty." },
+    { "code": "OP-RO", "name": "Reverse Osmosis", "clsid": "3eb2efdd-d0a2-4e21-b9bb-53e1e25ea11f", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Pressure-driven desalination (solution-diffusion, van 't Hoff osmotic)." },
+    { "code": "OP-NF", "name": "Nanofiltration", "clsid": "74927f7d-a0a8-4b31-b6df-3a283d5582a5", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Selective rejection of multivalent ions / small organics." },
+    { "code": "OP-UF", "name": "Ultrafiltration", "clsid": "6981b638-5dbe-4647-a20b-2c6b9809a301", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Size-exclusion removal of macromolecules and colloids." },
+    { "code": "OP-FO", "name": "Forward Osmosis", "clsid": "762666cd-fc8b-42e3-8d25-b78cf74ee588", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Osmotically-driven water transport into a draw solution." },
+    { "code": "OP-PRO", "name": "Pressure-Retarded Osmosis", "clsid": "34d9ffda-378a-4bb0-9b3b-6437fec531dc", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Osmotic power generation from a salinity gradient." }
+  ]
+}

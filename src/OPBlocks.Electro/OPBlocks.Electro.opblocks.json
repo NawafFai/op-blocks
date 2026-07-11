@@ -1,0 +1,11 @@
+{
+  "family": "Electrochemical",
+  "dll": "OPBlocks.Electro.dll",
+  "blocks": [
+    { "code": "OP-ED", "name": "Electrodialysis", "clsid": "dba4d883-276c-4937-82d4-444c5f4d499a", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Ion transport diluate→concentrate under a DC field (cell-pair model)." },
+    { "code": "OP-EDI", "name": "Electrodeionization", "clsid": "59ceaff7-5f26-406b-9755-a7d7f3ba07a9", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Electrodialysis plus ion-exchange resin for deep deionization." },
+    { "code": "OP-CDI", "name": "Capacitive Deionization", "clsid": "f449ed69-b1c4-4c23-816a-29188920ed71", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Cycle-averaged electrosorption of salt onto porous electrodes." },
+    { "code": "OP-CHLORALK", "name": "Chlor-Alkali Membrane Cell", "clsid": "db0c2564-a259-4e82-9038-7c1fd5c1754f", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Brine electrolysis to Cl2, NaOH and H2 (Faradaic)." },
+    { "code": "OP-IX", "name": "Ion Exchange Column", "clsid": "4cd0259f-649f-4db8-90ca-9e78275d3ecf", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Fixed-bed removal of a target ion (softening / selective capture)." }
+  ]
+}

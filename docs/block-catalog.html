@@ -1,0 +1,429 @@
+<title>ONE PROCESS Blocks — Library Catalog</title>
+<style>
+  :root{
+    --accent:#0E7C66; --accent-2:#0A5E4D; --accent-soft:#E4F0EC;
+    --ground:#F4F7F5; --card:#FFFFFF; --ink:#182420; --muted:#5f6f68;
+    --line:#dde6e1; --chip:#eef3f1; --code:#0b5;
+    --shadow:0 1px 2px rgba(16,40,32,.05),0 6px 20px rgba(16,40,32,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --accent:#33B394; --accent-2:#2A9C81; --accent-soft:#123027;
+      --ground:#0d1310; --card:#161f1b; --ink:#e9efeb; --muted:#93a49b;
+      --line:#26332d; --chip:#1c2823; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"]{
+    --accent:#0E7C66; --accent-2:#0A5E4D; --accent-soft:#E4F0EC;
+    --ground:#F4F7F5; --card:#FFFFFF; --ink:#182420; --muted:#5f6f68;
+    --line:#dde6e1; --chip:#eef3f1;
+  }
+  :root[data-theme="dark"]{
+    --accent:#33B394; --accent-2:#2A9C81; --accent-soft:#123027;
+    --ground:#0d1310; --card:#161f1b; --ink:#e9efeb; --muted:#93a49b;
+    --line:#26332d; --chip:#1c2823;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans Arabic",sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 24px 72px}
+  code,.mono{font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace}
+
+  /* Header */
+  header.hero{
+    display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;
+    padding:26px 28px;border-radius:16px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:#fff;box-shadow:var(--shadow);
+  }
+  .logo{width:54px;height:54px;flex:0 0 auto}
+  .hero h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+  .hero p{margin:4px 0 0;color:#dcefea;font-size:14px;max-width:60ch}
+  .hero .meta{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:6px}
+  .pill{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);
+    border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600}
+
+  .note{margin:18px 0 6px;padding:12px 16px;border-radius:12px;background:var(--accent-soft);
+    border:1px solid var(--line);color:var(--ink);font-size:13.5px}
+  .note b{color:var(--accent-2)}
+
+  /* Family section */
+  .fam{margin-top:38px}
+  .fam-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;
+    padding-bottom:10px;border-bottom:2px solid var(--line)}
+  .fam-head .idx{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.14em;text-transform:uppercase}
+  .fam-head h2{margin:0;font-size:19px;font-weight:750}
+  .fam-head .ar{margin-left:auto;color:var(--muted);font-size:14px}
+
+  /* Grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;margin-top:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;
+    box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;transition:transform .12s ease,border-color .12s}
+  .card:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .card-top{display:flex;gap:13px;align-items:flex-start}
+  .tile{width:52px;height:52px;flex:0 0 auto;border-radius:12px;background:var(--accent-soft);
+    display:grid;place-items:center;border:1px solid var(--line)}
+  .eq{width:38px;height:38px;color:var(--accent);fill:none;stroke:currentColor;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
+  .eq .fillsoft{fill:var(--accent);fill-opacity:.13;stroke:none}
+  .names{min-width:0}
+  .names .en{font-size:15.5px;font-weight:750;line-height:1.25}
+  .names .ar{font-size:13px;color:var(--muted);margin-top:1px}
+  .code{display:inline-block;margin-top:5px;font-size:11.5px;color:var(--accent-2);
+    background:var(--chip);border-radius:5px;padding:2px 7px;font-weight:600}
+  .desc{font-size:13px;color:var(--ink);opacity:.9}
+  .rows{display:flex;flex-direction:column;gap:5px;margin-top:2px;border-top:1px dashed var(--line);padding-top:9px}
+  .row{display:flex;gap:8px;font-size:12px}
+  .row .k{flex:0 0 74px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;padding-top:1px}
+  .row .v{color:var(--ink);opacity:.92}
+  .row .v .mono{font-size:11.5px;background:var(--chip);padding:1px 5px;border-radius:4px;margin:1px 3px 1px 0;display:inline-block}
+
+  footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;text-align:center}
+  footer b{color:var(--accent-2)}
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <svg class="logo" viewBox="-1 -1 2 2" aria-hidden="true">
+      <polygon points="0.866,0.5 0,1 -0.866,0.5 -0.866,-0.5 0,-1 0.866,-0.5" fill="none" stroke="#fff" stroke-width="0.09"/>
+      <text x="0" y="0.07" text-anchor="middle" font-size="0.5" fill="#fff" font-family="system-ui" font-weight="800">OP</text>
+    </svg>
+    <div>
+      <h1>ONE PROCESS Blocks — Library Catalog</h1>
+      <p>Custom CAPE-OPEN unit operations for Aspen Plus V14 &amp; DWSIM. Review the 25 blocks below — names, purpose, ports and key inputs — then confirm and each is built and validated.</p>
+    </div>
+    <div class="meta">
+      <span class="pill">25 blocks · 5 families</span>
+      <span class="pill">v1.0 · للمراجعة</span>
+    </div>
+  </header>
+
+  <div class="note">
+    مراجعة الكونفيقريشن — <b>راجع كل بلوك</b>: الاسم، الهدف، المنافذ (Ports)، وأهم المدخلات (Key inputs). عدّل أو أضف اللي تبي،
+    وبعد ما تعتمد القائمة أبنيهم بالترتيب على دفعات، كل بلوك بإعداداته الصحيحة ودقيقة. <b>Ports</b> = منافذ التوصيل · <b>Key inputs</b> = أهم متغيّرات الإدخال.
+  </div>
+
+  <!-- ============ FAMILY A ============ -->
+  <section class="fam">
+    <div class="fam-head"><span class="idx">Family A</span><h2>Thermal Desalination &amp; Evaporation</h2><span class="ar">تحلية حرارية وتبخير</span></div>
+    <div class="grid">
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><circle cx="11" cy="11" r="4"/><path d="M11 3v2M11 17v2M3 11h2M17 11h2M6 6l1 1M16 6l-1 1"/><path class="fillsoft" d="M6 27h28l-4 7H10z"/><path d="M6 27h28l-4 7H10z"/><path d="M20 20c1.5 2-1.5 3 0 5M25 19c1.5 2-1.5 3 0 5"/></svg></div>
+        <div class="names"><div class="en">Solar Evaporation Pond</div><div class="ar">بركة تبخّر شمسي</div><span class="code mono">OP-EVAPPOND</span></div>
+      </div>
+        <div class="desc">Concentrates brine by climate-driven evaporation; estimates rate, concentration factor and days-to-saturation.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">brine in · concentrate out · vapor out · solids out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">area</span><span class="mono">depth</span><span class="mono">irradiance</span><span class="mono">air T</span><span class="mono">RH</span><span class="mono">wind</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="7" y="8" width="9" height="24" rx="1.5"/><rect x="24" y="8" width="9" height="24" rx="1.5"/><line x1="20" y1="7" x2="20" y2="33" stroke-dasharray="2.4 2.4"/><path d="M16 14h4M16 20h4M16 26h4"/></svg></div>
+        <div class="names"><div class="en">Membrane Distillation (DCMD)</div><div class="ar">تقطير غشائي</div><span class="code mono">OP-MD</span></div>
+      </div>
+        <div class="desc">Thermally-driven vapor transport across a hydrophobic membrane; 1-D counter-current with temperature polarization.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">hot feed in/out · cold permeate in/out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">pore dia</span><span class="mono">porosity</span><span class="mono">tortuosity</span><span class="mono">thickness</span><span class="mono">area</span><span class="mono">N cells</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="5" y="15" width="8" height="17" rx="1.5"/><rect x="16" y="15" width="8" height="17" rx="1.5"/><rect x="27" y="15" width="8" height="17" rx="1.5"/><path d="M9 15v-5M20 15v-5M31 15v-5M13 12h3M24 12h3"/></svg></div>
+        <div class="names"><div class="en">Multi-Effect Distillation</div><div class="ar">تقطير متعدّد التأثير</div><span class="code mono">OP-MED</span></div>
+      </div>
+        <div class="desc">Multi-effect evaporation reusing vapor as heat across successive effects; computes GOR and distillate.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · distillate · brine · motive steam</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">N effects</span><span class="mono">top brine T</span><span class="mono">ΔT/effect</span><span class="mono">feed config</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="5" y="20" width="8" height="13" rx="1"/><rect x="15" y="16" width="8" height="17" rx="1"/><rect x="25" y="12" width="8" height="21" rx="1"/><path d="M5 20h27"/><path d="M9 20v-3M19 16v-3M29 12v-3"/></svg></div>
+        <div class="names"><div class="en">Multi-Stage Flash</div><div class="ar">وميض متعدّد المراحل</div><span class="code mono">OP-MSF</span></div>
+      </div>
+        <div class="desc">Flashes recirculated brine across staged chambers at decreasing pressure; distillate by stage balance.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · distillate · brine · steam</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">N stages</span><span class="mono">top brine T</span><span class="mono">recycle ratio</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="6" y="13" width="17" height="20" rx="2"/><circle cx="31" cy="14" r="5.5"/><path d="M31 8.5v11M25.5 14h11" stroke-width="1.6"/><path d="M23 20h4"/></svg></div>
+        <div class="names"><div class="en">Mechanical Vapor Compression</div><div class="ar">ضغط بخار ميكانيكي</div><span class="code mono">OP-MVC</span></div>
+      </div>
+        <div class="desc">Evaporator driven by mechanically-compressed vapor as the heat source; electrical duty from compression.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · distillate · brine · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">compression ratio</span><span class="mono">compressor η</span><span class="mono">ΔT</span></span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FAMILY B ============ -->
+  <section class="fam">
+    <div class="fam-head"><span class="idx">Family B</span><h2>Pressure-Driven Membranes</h2><span class="ar">أغشية بالضغط</span></div>
+    <div class="grid">
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="6" y="14" width="24" height="12" rx="6"/><line x1="15" y1="14" x2="15" y2="26" stroke-dasharray="2.2 2.2"/><path d="M30 20h6M33 16.5l3.5 3.5-3.5 3.5"/><path d="M4 20h2"/></svg></div>
+        <div class="names"><div class="en">Reverse Osmosis</div><div class="ar">تناضح عكسي</div><span class="code mono">OP-RO</span></div>
+      </div>
+        <div class="desc">Pressure-driven desalination through a spiral-wound membrane; solution-diffusion flux with concentration polarization.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · permeate · concentrate</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">area</span><span class="mono">A (water perm)</span><span class="mono">B (salt perm)</span><span class="mono">ΔP applied</span><span class="mono">N elements</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="10" y="8" width="20" height="24" rx="2"/><line x1="20" y1="8" x2="20" y2="32"/><circle cx="16" cy="13" r=".9" class="fillsoft"/><circle cx="16" cy="20" r=".9" class="fillsoft"/><circle cx="16" cy="27" r=".9" class="fillsoft"/><path d="M22 12l3 2-3 2M22 24l3 2-3 2" stroke-width="1.4"/></svg></div>
+        <div class="names"><div class="en">Nanofiltration</div><div class="ar">ترشيح نانوي</div><span class="code mono">OP-NF</span></div>
+      </div>
+        <div class="desc">Selective rejection of multivalent ions / small organics; per-ion permeability and Donnan effects.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · permeate · concentrate</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">MWCO</span><span class="mono">A</span><span class="mono">B per ion</span><span class="mono">ΔP</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="10" y="8" width="20" height="24" rx="2"/><line x1="20" y1="8" x2="20" y2="32"/><path d="M13 13h3M13 18h3M13 23h3M13 28h3"/><path d="M23 15l3 2.5-3 2.5" stroke-width="1.4"/></svg></div>
+        <div class="names"><div class="en">Ultrafiltration</div><div class="ar">ترشيح فائق</div><span class="code mono">OP-UF</span></div>
+      </div>
+        <div class="desc">Removes macromolecules, colloids and turbidity by size exclusion; transmembrane-pressure flux with fouling factor.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · permeate · retentate</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">pore size</span><span class="mono">permeability</span><span class="mono">TMP</span><span class="mono">rejection</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="10" y="8" width="20" height="24" rx="2"/><line x1="20" y1="8" x2="20" y2="32" stroke-dasharray="2.2 2.2"/><path d="M7 15l5 0M7 15l2-2M7 15l2 2" stroke-width="1.5"/><path d="M33 25l-5 0M33 25l-2-2M33 25l-2 2" stroke-width="1.5"/></svg></div>
+        <div class="names"><div class="en">Forward Osmosis</div><div class="ar">تناضح أمامي</div><span class="code mono">OP-FO</span></div>
+      </div>
+        <div class="desc">Osmotically-driven water transport into a draw solution; internal/external concentration polarization and reverse solute flux.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed in/out · draw in/out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">A</span><span class="mono">B</span><span class="mono">S (structural)</span><span class="mono">draw conc.</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="7" y="10" width="16" height="20" rx="2"/><line x1="15" y1="10" x2="15" y2="30" stroke-dasharray="2.2 2.2"/><circle cx="31" cy="20" r="6"/><path d="M31 20l4-2M31 20l-3 3M31 20l0 4" stroke-width="1.4"/></svg></div>
+        <div class="names"><div class="en">Pressure-Retarded Osmosis</div><div class="ar">تناضح مُعاق بالضغط (طاقة)</div><span class="code mono">OP-PRO</span></div>
+      </div>
+        <div class="desc">Osmotic power generation from salinity gradients; net water flux against applied pressure drives a turbine.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed in/out · draw in/out · power</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">A</span><span class="mono">B</span><span class="mono">S</span><span class="mono">ΔP</span></span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FAMILY C ============ -->
+  <section class="fam">
+    <div class="fam-head"><span class="idx">Family C</span><h2>Electrochemical &amp; Ion Separation</h2><span class="ar">فصل كهروكيميائي وأيوني</span></div>
+    <div class="grid">
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><path d="M9 9v22M15 9v22M21 9v22M27 9v22M33 9v22" stroke-dasharray="2 2"/><text x="6" y="36" font-size="7" stroke="none" fill="currentColor" font-family="system-ui">+</text><text x="31" y="36" font-size="8" stroke="none" fill="currentColor" font-family="system-ui">−</text></svg></div>
+        <div class="names"><div class="en">Electrodialysis</div><div class="ar">فصل كهروغشائي</div><span class="code mono">OP-ED</span></div>
+      </div>
+        <div class="desc">Ion transport through alternating cation/anion membranes under a DC field; SEC and current efficiency by cell-pair model.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">diluate in/out · concentrate in/out · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">cell pairs</span><span class="mono">voltage</span><span class="mono">R membrane</span><span class="mono">current eff.</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><path d="M11 9v22M20 9v22M29 9v22" stroke-dasharray="2 2"/><circle cx="15.5" cy="15" r="1" class="fillsoft"/><circle cx="15.5" cy="22" r="1" class="fillsoft"/><circle cx="24.5" cy="18" r="1" class="fillsoft"/></svg></div>
+        <div class="names"><div class="en">Electrodeionization</div><div class="ar">إزالة تأيّن كهربائي</div><span class="code mono">OP-EDI</span></div>
+      </div>
+        <div class="desc">Electrodialysis combined with ion-exchange resin for deep deionization to ultrapure water.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">dilute in/out · concentrate in/out · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">cell pairs</span><span class="mono">voltage</span><span class="mono">resin capacity</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="8" y="10" width="4" height="20" rx="1" class="fillsoft"/><rect x="8" y="10" width="4" height="20" rx="1"/><rect x="28" y="10" width="4" height="20" rx="1" class="fillsoft"/><rect x="28" y="10" width="4" height="20" rx="1"/><path d="M14 20h12" stroke-dasharray="2 2"/></svg></div>
+        <div class="names"><div class="en">Capacitive Deionization</div><div class="ar">إزالة تأيّن سعوي</div><span class="code mono">OP-CDI</span></div>
+      </div>
+        <div class="desc">Cycle-averaged electrosorption of salt onto porous electrodes; product TDS, SEC and water recovery.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · product · waste · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">SAC (mg/g)</span><span class="mono">charge eff.</span><span class="mono">cycle times</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="9" y="10" width="22" height="20" rx="2"/><line x1="20" y1="10" x2="20" y2="30" stroke-dasharray="2 2"/><circle cx="14" cy="14" r="1.1" class="fillsoft"/><circle cx="14" cy="18" r="1.1" class="fillsoft"/><circle cx="26" cy="14" r="1.1" class="fillsoft"/><path d="M12 30v3M28 30v3"/></svg></div>
+        <div class="names"><div class="en">Chlor-Alkali Membrane Cell</div><div class="ar">خلية كلور-قلوي</div><span class="code mono">OP-CHLORALK</span></div>
+      </div>
+        <div class="desc">Brine electrolysis producing Cl₂, caustic soda and H₂; Faradaic production with cell-voltage and water-transport model.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">brine in · depleted brine · NaOH · Cl₂ · H₂ · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">current density</span><span class="mono">current eff.</span><span class="mono">cell voltage</span><span class="mono">t (H₂O transport)</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><path d="M13 7h14l-1.5 26h-11z"/><circle cx="17" cy="14" r="1.1" class="fillsoft"/><circle cx="22" cy="16" r="1.1" class="fillsoft"/><circle cx="19" cy="20" r="1.1" class="fillsoft"/><circle cx="23" cy="23" r="1.1" class="fillsoft"/><path d="M18 3h4v4h-4zM20 33v4"/></svg></div>
+        <div class="names"><div class="en">Ion Exchange Column</div><div class="ar">عمود تبادل أيوني</div><span class="code mono">OP-IX</span></div>
+      </div>
+        <div class="desc">Fixed-bed ion exchange for softening or selective ion capture; capacity, selectivity and regeneration cycle.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · treated · regenerant in · spent out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">resin capacity</span><span class="mono">selectivity</span><span class="mono">bed volume</span><span class="mono">regen dose</span></span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FAMILY D ============ -->
+  <section class="fam">
+    <div class="fam-head"><span class="idx">Family D</span><h2>Lithium, Sorption &amp; Precipitation</h2><span class="ar">ليثيوم وامتزاز وترسيب</span></div>
+    <div class="grid">
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="12" y="6" width="16" height="28" rx="3"/><path d="M12 13h16M12 19h16M12 25h16"/><text x="20" y="11.5" text-anchor="middle" font-size="6" stroke="none" fill="currentColor" font-family="system-ui" font-weight="700">Li</text></svg></div>
+        <div class="names"><div class="en">Direct Lithium Extraction</div><div class="ar">استخلاص الليثيوم المباشر</div><span class="code mono">OP-DLE</span></div>
+      </div>
+        <div class="desc">Flagship. Selective Li⁺ sorption column (Langmuir + LDF, N-CSTR cyclic steady state); Li recovery, Mg/Li selectivity, productivity. Ports owner's ACM v5.3.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">brine feed · treated brine · eluate · wash water</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">q_max</span><span class="mono">K</span><span class="mono">k_LDF</span><span class="mono">bed dims</span><span class="mono">cycle times</span><span class="mono">sorbent ρ</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="6" y="12" width="12" height="16" rx="2"/><rect x="22" y="12" width="12" height="16" rx="2"/><path d="M12 12v-3M28 12v-3M18 16h4M18 24h4" stroke-width="1.5"/><path d="M11 18c1 1.5 2 1.5 3 0M25 22c1 1.5 2 1.5 3 0" stroke-width="1.3"/></svg></div>
+        <div class="names"><div class="en">Solvent Extraction (Mixer-Settler)</div><div class="ar">استخلاص بالمذيبات</div><span class="code mono">OP-SX</span></div>
+      </div>
+        <div class="desc">Counter-current liquid-liquid extraction stages; distribution coefficient, O/A ratio and stage efficiency.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">aqueous in/out · organic in/out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">D (dist. coeff)</span><span class="mono">stages</span><span class="mono">O/A ratio</span><span class="mono">stage η</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="13" y="6" width="14" height="28" rx="2"/><path d="M20 3v3M20 34v3"/><circle cx="17" cy="12" r="1.2" class="fillsoft"/><circle cx="23" cy="15" r="1.2" class="fillsoft"/><circle cx="19" cy="19" r="1.2" class="fillsoft"/><circle cx="22" cy="24" r="1.2" class="fillsoft"/><circle cx="17" cy="27" r="1.2" class="fillsoft"/></svg></div>
+        <div class="names"><div class="en">Activated Carbon Adsorption</div><div class="ar">امتزاز بالكربون النشط</div><span class="code mono">OP-GAC</span></div>
+      </div>
+        <div class="desc">Fixed-bed GAC removal of organic micropollutants; Freundlich isotherm and empty-bed contact time.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · treated · regeneration out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">K_F</span><span class="mono">n</span><span class="mono">bed mass</span><span class="mono">EBCT</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><path d="M9 10h22l-3 20a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2z"/><path d="M17 20l2-3 2 3-2 3zM23 25l1.5-2 1.5 2-1.5 2z" class="fillsoft"/><path d="M20 34v3"/></svg></div>
+        <div class="names"><div class="en">Crystallizer</div><div class="ar">مبلور / ترسيب أملاح</div><span class="code mono">OP-CRYST</span></div>
+      </div>
+        <div class="desc">Cooling/evaporative crystallization from supersaturated brine; yield and crystal production by solubility balance.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · mother liquor · crystals</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">solubility</span><span class="mono">residence time</span><span class="mono">temperature</span><span class="mono">yield</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="9" y="12" width="22" height="20" rx="2"/><path d="M20 6v6M17 8h6" stroke-width="1.6"/><path d="M14 22c2-3 4 3 6 0s4 3 6 0" stroke-width="1.4"/><path d="M20 18v.01"/></svg></div>
+        <div class="names"><div class="en">Chemical Precipitation Reactor</div><div class="ar">مفاعل ترسيب كيميائي</div><span class="code mono">OP-PPT</span></div>
+      </div>
+        <div class="desc">Reagent dosing to precipitate hardness or metals (e.g. Mg(OH)₂, CaCO₃); dose, pH and removal efficiency.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">feed · treated · sludge · reagent</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">reagent dose</span><span class="mono">target species</span><span class="mono">pH</span><span class="mono">removal %</span></span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FAMILY E ============ -->
+  <section class="fam">
+    <div class="fam-head"><span class="idx">Family E</span><h2>Energy, Gas &amp; Advanced Oxidation</h2><span class="ar">طاقة وغازات وأكسدة متقدمة</span></div>
+    <div class="grid">
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="12" y="8" width="16" height="24" rx="2"/><line x1="20" y1="8" x2="20" y2="32" stroke-dasharray="2 2"/><path d="M15 5v3M25 5v3" stroke-width="1.6"/><path d="M24 13c-2 2 2 3 0 5" stroke-width="1.3"/><path d="M24 21c-2 2 2 3 0 5" stroke-width="1.3"/></svg></div>
+        <div class="names"><div class="en">PEM Electrolyzer</div><div class="ar">محلّل كهربائي PEM</div><span class="code mono">OP-PEM</span></div>
+      </div>
+        <div class="desc">Splits water into green H₂ &amp; O₂; polarization-curve voltage, Faraday production, stack efficiency and kWh/kg H₂.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">water feed · H₂ · O₂ · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">cell area</span><span class="mono">current density</span><span class="mono">T</span><span class="mono">P</span><span class="mono">Faradaic eff.</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="12" y="8" width="16" height="24" rx="2"/><line x1="20" y1="8" x2="20" y2="32"/><path d="M15 5v3M25 5v3" stroke-width="1.6"/><path d="M14 14h4M14 19h4M14 24h4" stroke-width="1.3"/></svg></div>
+        <div class="names"><div class="en">Alkaline Electrolyzer</div><div class="ar">محلّل كهربائي قلوي</div><span class="code mono">OP-AEL</span></div>
+      </div>
+        <div class="desc">KOH-based water electrolysis to H₂; mature low-cost stack with concentration-dependent conductivity.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">water/KOH feed · H₂ · O₂ · electrical</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">cell area</span><span class="mono">current density</span><span class="mono">T</span><span class="mono">KOH conc.</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="12" y="8" width="16" height="24" rx="2"/><line x1="20" y1="8" x2="20" y2="32" stroke-dasharray="2 2"/><path d="M21 13l-3 5h4l-3 5" stroke-width="1.6" class="fillsoft"/><path d="M21 13l-3 5h4l-3 5" stroke-width="1.6"/></svg></div>
+        <div class="names"><div class="en">PEM Fuel Cell</div><div class="ar">خلية وقود PEM</div><span class="code mono">OP-FC</span></div>
+      </div>
+        <div class="desc">Combines H₂ and air to generate electric power; polarization curve, utilization and stack efficiency (LHV).</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">H₂ in · air in · exhaust · power</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">cell area</span><span class="mono">current density</span><span class="mono">utilization</span><span class="mono">T</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><circle cx="20" cy="20" r="13"/><circle cx="20" cy="20" r="5" class="fillsoft"/><circle cx="20" cy="20" r="5"/><path d="M20 7v5M20 28v5M7 20h5M28 20h5M11 11l3 3M29 29l-3-3M29 11l-3 3M11 29l3-3" stroke-width="1.3"/></svg></div>
+        <div class="names"><div class="en">Rotating Packed Bed (HiGee)</div><div class="ar">سرير حشو دوّار</div><span class="code mono">OP-RPB</span></div>
+      </div>
+        <div class="desc">Centrifugal-field intensified gas absorption (e.g. CO₂/MEA); NTU/HTU with rotor-speed mass-transfer correlation.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">gas in/out · liquid in/out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">rotor speed</span><span class="mono">packing</span><span class="mono">k_La corr.</span><span class="mono">HTU</span></span></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-top">
+        <div class="tile"><svg class="eq" viewBox="0 0 40 40"><rect x="6" y="14" width="28" height="12" rx="6"/><path d="M14 20h12" stroke-width="3" stroke-linecap="round" class="fillsoft"/><path d="M14 20h12"/><path d="M20 9v3M16 10l1 2M24 10l-1 2" stroke-width="1.4"/><path d="M4 20h2M34 20h2"/></svg></div>
+        <div class="names"><div class="en">UV / Advanced Oxidation</div><div class="ar">مفاعل أشعة UV / أكسدة متقدمة</div><span class="code mono">OP-UVAOP</span></div>
+      </div>
+        <div class="desc">UV (optionally + H₂O₂) destruction of trace contaminants; dose-response log-removal per target and EEO reporting.</div>
+        <div class="rows">
+          <div class="row"><span class="k">Ports</span><span class="v">liquid in · liquid out</span></div>
+          <div class="row"><span class="k">Key inputs</span><span class="v"><span class="mono">UV dose</span><span class="mono">k per contaminant</span><span class="mono">UVT</span><span class="mono">H₂O₂ dose</span></span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    ONE PROCESS Blocks — Library Catalog v1.0 · 25 blocks · designed &amp; developed by <b>Engineer Nawaf</b> — ONE PROCESS Simulation.<br>
+    راجع القائمة واعتمدها أو عدّلها، وبعدها يُبنى كل بلوك بإعداداته الدقيقة ويُسجَّل ويُختبر.
+  </footer>
+</div>

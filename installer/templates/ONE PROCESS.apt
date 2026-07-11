@@ -1,0 +1,261 @@
+MM "40.0" FLAVOR "NO" VERSION "40.0" DATETIME "Sat Jul 11 00:04:00 2026" 
+MACHINE "WIN-NT/VC"  ; 
+startlibrary
+version1
+NumLibs = 5
+Built-In
+CAPE-OPEN
+ACM Models
+ACM Built-In
+Hybrid Models
+NumCats = 14
+Mixers/Splitters
+active
+Separators
+active
+Exchangers
+active
+Columns
+active
+Reactors
+active
+Pressure Changers
+active
+Manipulators
+active
+Solids
+active
+Solids Separators
+active
+Controllers
+active
+Batch Models
+active
+User Models
+active
+ACM Models
+active
+CAPE-OPEN
+active
+endlibrary
+; 
+0
+? SETUP MAIN ? \ "RUN-CLASS" RUN-CLASS = FLOWSHEET \ \ SIMULATE INTERACTIVE
+ = NO MOLEFLOW = MOLEFLOW \ ? SETUP GLOBAL ? \ "IN-UNITS" INSET = METCBAR \ ? 
+SETUP "SIM-OPTIONS" ? ; "METCBAR_MOLE" ; ? SETUP "UNITS-SET" METCBAR ? \ 
+DESCRIPTION DESCRIPTION = "User-defined units set" \ \ MMLOCAL \ \ UNITSET 
+BASESET = MET ( 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 5 3 4 3 3 3 3 3 3 3 3 4 
+3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 
+3 3 3 3 5 3 3 3 3 3 3 5 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 
+3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 7 3 3 3 3 3 3 3 3 3 3 
+3 3 3 3 3 3 3 ) \ ? "DATA-SERVICE" ? ? COMPONENTS MAIN ? ? COMPONENTS "ADA/PCS" 
+"LE-PROP-DATA" ? ; "METCBAR_MOLE" ; ? COMPONENTS "COMP-LIST" GLOBAL ? ? 
+COMPONENTS "UNIFAC-GROUP" ? ? SOLVE ? \ "RUN-MODE" MODE = SIM \ ? "DYN-OPTIONS" 
+? ? "BIO-COMPS" ? ? FLOWSHEET GLOBAL ? ? PROPERTIES MAIN ? \ GPROPERTIES 
+PARCON = -2 \ ? PROPERTIES PARAMETERS BINARY SCALAR "MLQKIJ-1" ? ; "ENG_MOLE" 
+; \ PROP-LIST PARAMNAME = MLQKIJ SETNO = 1 \ ? PROPERTIES PARAMETERS BINARY 
+SCALAR "RKTKIJ-1" ? ; "ENG_MOLE" ; \ PROP-LIST PARAMNAME = RKTKIJ SETNO = 1 
+\ ? PROPERTIES PARAMETERS BINARY "T-DEPENDENT" "ANDKIJ-1" ? ; "ENG_MOLE" ; 
+\ PROP-LIST PARAMNAME = ANDKIJ SETNO = 1 UNITROW = 0 TUNITROW = 22 TUNITLABEL
+ = F NEL = 2 \ ? PROPERTIES PARAMETERS BINARY "T-DEPENDENT" "ANDMIJ-1" ? ; 
+"ENG_MOLE" ; \ PROP-LIST PARAMNAME = ANDMIJ SETNO = 1 UNITROW = 0 TUNITROW = 
+22 TUNITLABEL = F NEL = 2 \ ? PROPERTIES PARAMETERS BINARY "T-DEPENDENT" 
+"MUKIJ-1" ? ; "ENG_MOLE" ; \ PROP-LIST PARAMNAME = MUKIJ SETNO = 1 UNITROW = 0 
+TUNITROW = 22 TUNITLABEL = F NEL = 6 \ ? PROPERTIES PARAMETERS BINARY 
+"T-DEPENDENT" "MULIJ-1" ? ; "ENG_MOLE" ; \ PROP-LIST PARAMNAME = MULIJ SETNO
+ = 1 UNITROW = 0 TUNITROW = 22 TUNITLABEL = F NEL = 11 \ ? PROPERTIES 
+"ATTR-COMPS" ? ? POLYMERS ? ? "STREAM-NAMES" ? ? "STREAM-GROUP" All ? \ 
+DESCRIPTION DESCRIPTION = "All streams" \ ? "STREAM-GROUP" Boundary ? \ 
+DESCRIPTION DESCRIPTION = "Boundary streams" \ ? "STREAM-GROUP" Charge ? \ 
+DESCRIPTION DESCRIPTION = "Charge streams" \ ? "STREAM-GROUP" Feeds ? \ 
+DESCRIPTION DESCRIPTION = "Feed streams" \ ? "STREAM-GROUP" Initial ? \ 
+DESCRIPTION DESCRIPTION = "Streams with user-specified values entered" \ ? 
+"STREAM-GROUP" Products ? \ DESCRIPTION DESCRIPTION = "Product streams" \ ? 
+"STREAM-GROUP" Tears ? \ DESCRIPTION DESCRIPTION = 
+"Tear streams manipulated by the convergence algorithms" \ ? "EO-VARS" ? ? 
+"EO-CONV-OPTI" ? \ DMO-PARAMS MODE = DEFAULT \ \ DMO-PARAMS MODE = SIMULATION 
+\ \ DMO-PARAMS MODE = "PARAMETER-ESTIMATION" \ \ DMO-PARAMS MODE = 
+RECONCILIATION \ \ DMO-PARAMS MODE = OPTIMIZATION \ \ LSSQP-PARAMS MODE-L = 
+DEFAULT \ \ LSSQP-PARAMS MODE-L = SIMULATION \ \ LSSQP-PARAMS MODE-L = 
+"PARAMETER-ESTIMATION" \ \ LSSQP-PARAMS MODE-L = RECONCILIATION \ \ 
+LSSQP-PARAMS MODE-L = OPTIMIZATION \ \ NSOLVE-PARAM NSOLVE-MODE = DEFAULT \ 
+\ NSOLVE-PARAM NSOLVE-MODE = SIMULATION \ \ NSOLVE-PARAM NSOLVE-MODE = 
+"PARAMETER-ESTIMATION" \ \ XSLP-PARAMS XSLP-MODE = DEFAULT \ \ XSLP-PARAMS 
+XSLP-MODE = SIMULATION \ \ XSLP-PARAMS XSLP-MODE = "PARAMETER-ESTIMATION" \ 
+\ XSLP-PARAMS XSLP-MODE = RECONCILIATION \ \ XSLP-PARAMS XSLP-MODE = 
+OPTIMIZATION \ ? REPORT "STREAM-REPOR" ? \ OPTIONS MOLEFLOW = MOLEFLOW \ 
+
+ GRAPHICS_BACKUP
+PFS V 5.00
+$CONFIG
+paramdata APV140 ENRTL-RK
+paramdata APV140 VLE-IG
+paramdata APV140 VLE-RK
+paramdata APV140 VLE-HOC
+paramdata APV140 LLE-LIT
+paramdata APV140 LLE-ASPEN
+paramdata APV140 VLE-LIT
+paramdata APV140 BINARY
+paramdata APV140 HENRY-AP
+paramdata APV140 PITZER
+paramdata APV140 EOS-LIT
+paramdata APV140 HENRY-AP
+paramdata APV140 SRK-ASPEN
+paramdata APV140 PC-SAFT
+paramdata APV140 POLYPCSF
+paramdata APV140 HYSYS
+paramdata APESV140 AP-EOS
+paramdata NISTV140 NIST-HOC
+paramdata NISTV140 NIST-IG
+paramdata NISTV140 NIST-RK
+paramdata NISTV140 NIST-EOS
+purebank APV140 PURE40
+purebank APV140 AQUEOUS
+purebank APV140 SOLIDS
+purebank APV140 INORGANIC
+purebank APESV140 AP-EOS
+purebank NISTV140 NIST-TRC
+regdbank 0
+ftn_check 1
+autoblockid 1
+autostreamid 1
+showblockid 1
+showstreamid 1
+autoplacement 1
+grid 2
+gridresolution 0.100000
+scale 0
+blockprefix B
+labelscale 1.000000
+3DOn 1
+qwformat %.0f
+wformat %.0f
+tempformat %.0f
+presformat %.0f
+flowformat %.0f
+strmqwformat %.0f
+strmwformat %.0f
+vflowformat %.0f
+mflowformat %.0f
+vfracformat %.2f
+pseudobatch 0
+partial 1
+animation 1
+runanyway 0
+globalqw 0
+globalw 0
+globaltemp 0
+globalpres 0
+globalflow 0
+globalstrmqw 0
+globalstrmw 0
+globalvflow 0
+globalmflow 0
+globalvfrac 0
+globalshowcalcerror 1
+globalshowcalcwarning 1
+globalshowdisabled 1
+tooldrawvisible 0
+browserheight 7530
+browserwidth 10725
+browsertreewidth 2450
+polyplusenabled 1
+dynaplusenabled 1
+bfracenabled 1
+rtfenabled 1
+rspenabled 1
+initializeicarus 0
+pinchenabled 0
+linklimit 5000
+material_color 0
+material_style 0
+material_width 1
+heat_color 0
+heat_style 2
+heat_width 1
+heat_termid Q
+work_color 0
+work_style 1
+work_width 1
+work_termid W
+connections_color 9
+connections_style 3
+connections_width 1
+measurements_color 4
+measurements_style 3
+measurements_width 1
+power_color 10
+power_style 5
+power_width 1
+power_termid I
+displayeoconn 0
+displaycalcs 0
+displaytransfers 0
+displaymeas 0
+displaydesignspecs 0
+displaycalccons 0
+displaymeascons 0
+displayothercons 0
+displayeomeas 1
+displayeomeastype 2
+displayothermanipconn 0
+showeoviews 0
+eoautosave 1
+allow_system_userprops 0
+copy_estimation 1
+copy_retrieved 1
+purge_incomp_params 0
+set_default_biparams 0
+set_default_dataset1 0
+set_default_dataset0 1
+bestinput 0
+autosmrun 0
+genallpropset 1
+strmresformdefault 0
+roottype 0
+exchangerfile 1
+streamformat 1
+runsettingfile 1
+usermodelfile 1
+fortranfile 0
+timeout 1000
+auto_evaluate 0
+customglobaldatapropset1 0 | Custom1 | * | %.2f | 0 | 6
+customglobaldatapropset2 0 | Custom2 | * | %.2f | 1 | 7
+customglobaldatapropset3 0 | Custom3 | * | %.2f | 2 | 8
+customglobaldatapropset4 0 | Custom4 | * | %.2f | 4 | 9
+customglobaldatapropset5 0 | Custom5 | * | %.2f | 5 | 10
+customglobaldatapropset6 0 | Custom6 | * | %.2f | 6 | 11
+customglobaldatapropset7 0 | Custom7 | * | %.2f | 7 | 12
+economics_active 0
+ignoreEOVarNameFixupsOnImport 1
+tpsaupgrade 0
+#
+$_APWNSHELL_SETTINGS
+<FileRootSettings><CaseFileSettings>&lt;CaseFileSettings StreamSummaryFormSettings="&amp;lt;src&amp;gt;&amp;lt;ReferencedPaths /&amp;gt;&amp;lt;ReferencedTemplates /&amp;gt;&amp;lt;/src&amp;gt;" xmlns="clr-namespace:AspenTech.AspenPlus.Infrastructure;assembly=AspenTech.AspenPlus.Infrastructure" /&gt;</CaseFileSettings><CommonShellSettings>&lt;CommonShellSettings xmlns="http://schemas.aspentech.com/xaml/presentation/visualisation/commonshell" xmlns:atapi="clr-namespace:AspenTech.AspenPlus.Infrastructure;assembly=AspenTech.AspenPlus.Infrastructure" xmlns:assembly="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:atapmaa="clr-namespace:AspenTech.AspenPlus.Modules.ApwnApplication;assembly=ApwnShell" xmlns:atapie="clr-namespace:AspenTech.AspenPlus.Infrastructure.Events;assembly=AspenTech.AspenPlus.Infrastructure" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:apmab="clr-namespace:AspenPlus.Modules.ApwnBrowser;assembly=ApwnShell" xmlns:cxv="http://schemas.aspentech.com/xaml/presentation/cxsviewmodel"&gt;&lt;CommonShellSettings.CurrentWorkspace&gt;&lt;ShellWorkspace ActivationBarState="&amp;lt;DashboardPanel IsExpanded=&amp;quot;false&amp;quot; IsTurnedOff=&amp;quot;false&amp;quot; Version=&amp;quot;40&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;Item Type=&amp;quot;AspenTech.ActivationDashboard.EconomicAnalysis.DashboardItem&amp;quot;&amp;gt;&amp;amp;lt;!--This is the current state of Economics Analysis Dashboard--&amp;amp;gt;&amp;#xD;&amp;#xA;&amp;amp;lt;Root&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;OnOffState Value=&amp;quot;Off&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;CapitalCost Value=&amp;quot;&amp;quot; Units=&amp;quot;USD&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;UtilityCost Value=&amp;quot;&amp;quot; Units=&amp;quot;USD/Year&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;HasError&amp;amp;gt;false&amp;amp;lt;/HasError&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;_statusCode Value=&amp;quot;-1&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;Flags&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_isRunCompleted Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_isRunning Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_incompleteButActivated Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_incompleteButLoaded Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_incompleteButSized Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_incompleteButMapped Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_completeEvaluatedNotAutoRun Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_isSimulationChanged Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_isInStopping Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_isOnOffButtonCanBeUsed Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;    &amp;amp;lt;_isResetDashboardButLeaveItOn Value=&amp;quot;false&amp;quot; /&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;/Flags&amp;amp;gt;&amp;#xD;&amp;#xA;&amp;amp;lt;/Root&amp;amp;gt;&amp;lt;/Item&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;Item Type=&amp;quot;AspenTech.ActivationDashboard.EnergyAnalysis.DashboardItem&amp;quot;&amp;gt;&amp;amp;lt;!--This is the current state of Energy Analysis Dashboard--&amp;amp;gt;&amp;#xD;&amp;#xA;&amp;amp;lt;Root&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;IsExpanded&amp;amp;gt;false&amp;amp;lt;/IsExpanded&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;OnOff&amp;amp;gt;Off&amp;amp;lt;/OnOff&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;Status&amp;amp;gt;InputIncomplete&amp;amp;lt;/Status&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;PUS&amp;amp;gt;&amp;amp;lt;/PUS&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;Percent&amp;amp;gt;&amp;amp;lt;/Percent&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;Units&amp;amp;gt;MW&amp;amp;lt;/Units&amp;amp;gt;&amp;#xD;&amp;#xA;&amp;amp;lt;/Root&amp;amp;gt;&amp;lt;/Item&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;Item Type=&amp;quot;AspenTech.ActivationDashboard.EdrActivation.DashboardItem&amp;quot;&amp;gt;&amp;amp;lt;EDR&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;IsShowModelStatus&amp;amp;gt;false&amp;amp;lt;/IsShowModelStatus&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;IsShowRiskStatus&amp;amp;gt;false&amp;amp;lt;/IsShowRiskStatus&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;IsShowLegend&amp;amp;gt;false&amp;amp;lt;/IsShowLegend&amp;amp;gt;&amp;#xD;&amp;#xA;  &amp;amp;lt;DetailCount&amp;amp;gt;0&amp;amp;lt;/DetailCount&amp;amp;gt;&amp;#xD;&amp;#xA;&amp;amp;lt;/EDR&amp;amp;gt;&amp;lt;/Item&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;Item Type=&amp;quot;AspenTech.ActivationDashboard.GHGEmission.DashboardItem&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;&amp;lt;/DashboardPanel&amp;gt;" Layout="&amp;lt;?xml version=&amp;quot;1.0&amp;quot; encoding=&amp;quot;utf-8&amp;quot;?&amp;gt;&amp;#xD;&amp;#xA;&amp;lt;xamDockManager version=&amp;quot;21.1.20211.27&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;contentPanes&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;contentPane name=&amp;quot;FlowsheetScreenFactory&amp;quot; location=&amp;quot;Document&amp;quot; lastActivatedTime=&amp;quot;2026-07-10T20:59:33.6071283Z&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;contentPane name=&amp;quot;ModelLibrariesManagerWindowKey&amp;quot; location=&amp;quot;Floating&amp;quot; lastFloatingSize=&amp;quot;600,300&amp;quot; lastFloatingWindowRect=&amp;quot;20,160,600,300&amp;quot; lastFloatingLocation=&amp;quot;24,184.96&amp;quot; lastActivatedTime=&amp;quot;2026-07-10T20:58:42.4135334Z&amp;quot; visibility=&amp;quot;Collapsed&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;contentPane name=&amp;quot;ModelLibraryScreenFactoryKey&amp;quot; location=&amp;quot;DockedBottom&amp;quot; lastActivatedTime=&amp;quot;2026-07-10T20:58:02.8369553Z&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;/contentPanes&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;panes&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;splitPane splitterOrientation=&amp;quot;Vertical&amp;quot; location=&amp;quot;DockedBottom&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;      &amp;lt;contentPane name=&amp;quot;ModelLibraryScreenFactoryKey&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;/splitPane&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;splitPane splitterOrientation=&amp;quot;Vertical&amp;quot; location=&amp;quot;Floating&amp;quot; floatingLocation=&amp;quot;20,160&amp;quot; floatingSize=&amp;quot;600,300&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;      &amp;lt;contentPane name=&amp;quot;ModelLibrariesManagerWindowKey&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;/splitPane&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;/panes&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;documents splitterOrientation=&amp;quot;Vertical&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;splitPane splitterOrientation=&amp;quot;Vertical&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;      &amp;lt;tabGroup selectedIndex=&amp;quot;0&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;        &amp;lt;contentPane name=&amp;quot;FlowsheetScreenFactory&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;      &amp;lt;/tabGroup&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;/splitPane&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;/documents&amp;gt;&amp;#xD;&amp;#xA;&amp;lt;/xamDockManager&amp;gt;" NavigationGroupToSelect="Simulation" IsNavigationPaneMinimized="False" IsRibbonMinimized="False"&gt;&lt;ShellWorkspace.Screens&gt;&lt;WorkspaceScreenData PaneName="FlowsheetScreenFactory" ScreenFactoryKey="FlowsheetScreenFactory"&gt;&lt;WorkspaceScreenData.ScreenSubject&gt;&lt;atapi:StringScreenSubject subject="{assembly:Null}" fatherNodePath="{assembly:Null}" NavigationGroupKey="Simulation" /&gt;&lt;/WorkspaceScreenData.ScreenSubject&gt;&lt;WorkspaceScreenData.ScreenState&gt;&lt;ScreenState Zoom="2.270001" /&gt;&lt;/WorkspaceScreenData.ScreenState&gt;&lt;/WorkspaceScreenData&gt;&lt;WorkspaceScreenData PaneName="ModelLibrariesManagerWindowKey" ScreenFactoryKey="ClosedScreenPlaceholder"&gt;&lt;WorkspaceScreenData.ScreenState&gt;&lt;ScreenState /&gt;&lt;/WorkspaceScreenData.ScreenState&gt;&lt;/WorkspaceScreenData&gt;&lt;WorkspaceScreenData PaneName="ModelLibraryScreenFactoryKey" ScreenFactoryKey="ModelLibraryScreenFactoryKey"&gt;&lt;WorkspaceScreenData.ScreenState&gt;&lt;ScreenState /&gt;&lt;/WorkspaceScreenData.ScreenState&gt;&lt;/WorkspaceScreenData&gt;&lt;/ShellWorkspace.Screens&gt;&lt;/ShellWorkspace&gt;&lt;/CommonShellSettings.CurrentWorkspace&gt;&lt;CommonShellSettings.SavedWorkspaces&gt;&lt;ShellWorkspaceFolder /&gt;&lt;/CommonShellSettings.SavedWorkspaces&gt;&lt;CommonShellSettings.NavigatorGroupWorkspaces&gt;&lt;ShellWorkspace Name="Properties" Layout="&amp;lt;?xml version=&amp;quot;1.0&amp;quot; encoding=&amp;quot;utf-8&amp;quot;?&amp;gt;&amp;#xD;&amp;#xA;&amp;lt;xamDockManager version=&amp;quot;21.1.20211.27&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;contentPanes&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;contentPane name=&amp;quot;_AnonymousScreen1&amp;quot; location=&amp;quot;Document&amp;quot; lastActivatedTime=&amp;quot;2026-07-10T20:56:06.8465797Z&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;/contentPanes&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;documents splitterOrientation=&amp;quot;Vertical&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;splitPane splitterOrientation=&amp;quot;Vertical&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;      &amp;lt;tabGroup selectedIndex=&amp;quot;0&amp;quot;&amp;gt;&amp;#xD;&amp;#xA;        &amp;lt;contentPane name=&amp;quot;_AnonymousScreen1&amp;quot; /&amp;gt;&amp;#xD;&amp;#xA;      &amp;lt;/tabGroup&amp;gt;&amp;#xD;&amp;#xA;    &amp;lt;/splitPane&amp;gt;&amp;#xD;&amp;#xA;  &amp;lt;/documents&amp;gt;&amp;#xD;&amp;#xA;&amp;lt;/xamDockManager&amp;gt;" NavigationGroupToSelect="Properties" IsNavigationPaneMinimized="False" IsRibbonMinimized="False"&gt;&lt;ShellWorkspace.Screens&gt;&lt;WorkspaceScreenData PaneName="_AnonymousScreen1" ScreenFactoryKey="ApwnFormContentFactory"&gt;&lt;WorkspaceScreenData.ScreenSubject&gt;&lt;atapmaa:ApwnFormScreenSubject Key="Components.Specifications" NavigationGroupKey="Properties"&gt;&lt;atapmaa:ApwnFormScreenSubject.ShowFormArgs&gt;&lt;atapie:ShowFormEventArgs FormProgId="MMCOMP_SPEC.MMCOMP_SPEC_INPUT" FormKey="Components.Specifications" Header="Components - Specifications" ResultsOnly="False" PathKey="Top.appModelV8.Components.Specifications"&gt;&lt;atapie:ShowFormEventArgs.Parameters&gt;&lt;s:String assembly:Key="id"&gt;Specifications&lt;/s:String&gt;&lt;s:String assembly:Key="main"&gt;Top.appModelV8.Components.Specifications&lt;/s:String&gt;&lt;/atapie:ShowFormEventArgs.Parameters&gt;&lt;/atapie:ShowFormEventArgs&gt;&lt;/atapmaa:ApwnFormScreenSubject.ShowFormArgs&gt;&lt;atapmaa:ApwnFormScreenSubject.PlotwizardRule&gt;&lt;apmab:ApwnPlotwizardRule ContextPath="Top.appModelV8.Components.Specifications" /&gt;&lt;/atapmaa:ApwnFormScreenSubject.PlotwizardRule&gt;&lt;/atapmaa:ApwnFormScreenSubject&gt;&lt;/WorkspaceScreenData.ScreenSubject&gt;&lt;WorkspaceScreenData.ScreenState&gt;&lt;atapmaa:ApwnFormScreenState&gt;&lt;atapmaa:ApwnFormScreenState.Parameters&gt;&lt;cxv:CxvParameter Name="main" Value="Top.appModelV8.Components.Specifications" /&gt;&lt;cxv:CxvParameter Name="id" Value="Specifications" /&gt;&lt;cxv:CxvParameter Name="extraComments_path" Value="Comments" /&gt;&lt;cxv:CxvParameter Name="extraDescription_path" Value="Input.DESCRIPTION" /&gt;&lt;cxv:CxvParameter Name="extraUnits_path" Value="Input.Unit Set" /&gt;&lt;cxv:CxvParameter Name="NotNeedName" Value="NotNull" /&gt;&lt;cxv:CxvParameter Name="NotNeedType" Value="NotNull" /&gt;&lt;cxv:CxvParameter Name="selected_tab" Value="tab0" /&gt;&lt;/atapmaa:ApwnFormScreenState.Parameters&gt;&lt;/atapmaa:ApwnFormScreenState&gt;&lt;/WorkspaceScreenData.ScreenState&gt;&lt;/WorkspaceScreenData&gt;&lt;/ShellWorkspace.Screens&gt;&lt;/ShellWorkspace&gt;&lt;/CommonShellSettings.NavigatorGroupWorkspaces&gt;&lt;/CommonShellSettings&gt;</CommonShellSettings></FileRootSettings>
+$_END_APWNSHELL_SETTINGS
+#
+PFSVData
+# of PFS Objects = 1
+SIZE -3 3 -3 3
+LEGEND
+Version: 2
+Unfixed
+# of PFS Objects = 0
+VIEWPORT -6.504232 6.504232 3.300000 -1.919347
+LAYOUT
+TableFormat 1
+Pages 1 1 1 1
+PAGESETUP
+PAPERSIZE 
+PAPERSOURCE 
+ORIENTATION -1
+PRINTPAGENO 1 1
+LEFTMARGIN 0.5"
+RIGHTMARGIN 0.5"
+TOPMARGIN 0.5"
+BOTTOMMARGIN 0.5"
+VISIBILITY 0.030000
+PFDFLAG 255 255
+PFDMODE 0
+SCALE 0.007981

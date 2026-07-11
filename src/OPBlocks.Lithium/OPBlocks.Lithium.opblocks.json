@@ -1,0 +1,11 @@
+{
+  "family": "Lithium & Sorption",
+  "dll": "OPBlocks.Lithium.dll",
+  "blocks": [
+    { "code": "OP-DLE", "name": "Direct Lithium Extraction", "clsid": "56288974-1bd8-4fa2-b05d-d588a4035f14", "category": "ONE PROCESS", "milestone": "flagship", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Selective Li+ sorption column (Langmuir + LDF, cycle-averaged)." },
+    { "code": "OP-SX", "name": "Solvent Extraction (Mixer-Settler)", "clsid": "d51c7832-8220-4a2a-94d7-c3fcc59c5efa", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Counter-current liquid-liquid extraction (Kremser cascade)." },
+    { "code": "OP-GAC", "name": "Activated Carbon Adsorption", "clsid": "7720a360-e026-4976-8f81-b8db159f8b8a", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Fixed-bed GAC micropollutant removal (Freundlich isotherm, EBCT)." },
+    { "code": "OP-CRYST", "name": "Crystallizer", "clsid": "e66a4bc8-e322-419e-befd-ddabf14310cc", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Cooling/evaporative crystallization of salt from supersaturated brine." },
+    { "code": "OP-PPT", "name": "Chemical Precipitation Reactor", "clsid": "d820ba95-3e24-4e85-81ef-6e8df1f503c3", "category": "ONE PROCESS", "capeVersion": "1.0", "vendorUrl": "https://oneprocess.sim", "description": "Reagent dosing to precipitate hardness / metals as sludge." }
+  ]
+}

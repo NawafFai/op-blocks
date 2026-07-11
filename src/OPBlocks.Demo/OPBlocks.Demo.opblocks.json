@@ -1,0 +1,16 @@
+{
+  "family": "Demo",
+  "dll": "OPBlocks.Demo.dll",
+  "blocks": [
+    {
+      "code": "OP-MIXER-DEMO",
+      "name": "Demo Mixer",
+      "clsid": "f0785d44-eac0-4d51-a895-68ab52849cb8",
+      "category": "ONE PROCESS",
+      "milestone": "M0",
+      "description": "Two-stream adiabatic mixer with fully delegated thermodynamics. The M0 skeleton block that proves the end-to-end pipeline.",
+      "capeVersion": "1.0",
+      "vendorUrl": "https://oneprocess.sim"
+    }
+  ]
+}

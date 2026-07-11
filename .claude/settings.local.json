@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($ErrorActionPreference='SilentlyContinue'; Write-Output \"=== dotnet ===\"; \\(Get-Command dotnet\\).Source; dotnet --version; Write-Output \"=== dotnet SDKs ===\"; dotnet --list-sdks; Write-Output \"=== dotnet runtimes ===\"; dotnet --list-runtimes)",
+      "PowerShell($ErrorActionPreference='SilentlyContinue'; Write-Output \"=== MSBuild ===\"; \\(Get-Command msbuild\\).Source; Write-Output \"=== .NET FX 4.8 ===\"; \\(Get-ItemProperty 'HKLM:\\\\SOFTWARE\\\\Microsoft\\\\NET Framework Setup\\\\NDP\\\\v4\\\\Full' -Name Release\\).Release; Write-Output \"=== Aspen Plus registry ===\"; Get-ChildItem 'HKLM:\\\\SOFTWARE\\\\AspenTech' | Select-Object Name; Write-Output \"=== WOW6432 AspenTech ===\"; Get-ChildItem 'HKLM:\\\\SOFTWARE\\\\WOW6432Node\\\\AspenTech' | Select-Object Name)",
+      "PowerShell(winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements --disable-interactivity)",
+      "PowerShell([guid]::NewGuid\\(\\).ToString\\(\\))",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
