@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>OPBlocks.DWSIM</RootNamespace>
+    <AssemblyName>OPBlocks.DWSIM</AssemblyName>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Pure .NET plug-in loaded from DWSIM's unitops folder; no COM involved. -->
+    <ComVisible>false</ComVisible>
+    <!-- DWSIM install to compile against. Per-user install by default; override
+         with -p:DWSIMDir=... for a machine-wide install. -->
+    <DWSIMDir Condition="'$(DWSIMDir)' == ''">$(LOCALAPPDATA)\DWSIM</DWSIMDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OPBlocks.Core\OPBlocks.Core.csproj" />
+    <ProjectReference Include="..\OPBlocks.Desalination\OPBlocks.Desalination.csproj" />
+    <ProjectReference Include="..\OPBlocks.Electro\OPBlocks.Electro.csproj" />
+    <ProjectReference Include="..\OPBlocks.Lithium\OPBlocks.Lithium.csproj" />
+    <ProjectReference Include="..\OPBlocks.Energy\OPBlocks.Energy.csproj" />
+    <Reference Include="CapeOpen">
+      <HintPath>..\..\libs\CapeOpen\CapeOpen.dll</HintPath>
+      <!-- DWSIM ships the identical CapeOpen.dll in its application base. -->
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- DWSIM assemblies: compile against the installed simulator, never redistribute
+       (Private=false). The adapter loads inside DWSIM's process where these resolve
+       from the application base. -->
+  <ItemGroup>
+    <Reference Include="DWSIM.Interfaces">
+      <HintPath>$(DWSIMDir)\DWSIM.Interfaces.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.UnitOperations">
+      <HintPath>$(DWSIMDir)\DWSIM.UnitOperations.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.SharedClasses">
+      <HintPath>$(DWSIMDir)\DWSIM.SharedClasses.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.Thermodynamics">
+      <HintPath>$(DWSIMDir)\DWSIM.Thermodynamics.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.Drawing.SkiaSharp">
+      <HintPath>$(DWSIMDir)\DWSIM.Drawing.SkiaSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.DrawingTools.Point">
+      <HintPath>$(DWSIMDir)\DWSIM.DrawingTools.Point.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.XMLSerializer">
+      <HintPath>$(DWSIMDir)\DWSIM.XMLSerializer.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SkiaSharp">
+      <HintPath>$(DWSIMDir)\SkiaSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DWSIMDir)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- SkiaSharp's byte[] decode overloads surface ReadOnlySpan; DWSIM ships
+         System.Memory.dll, so compile against the package but don't copy it. -->
+    <PackageReference Include="System.Memory" Version="4.5.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!-- Per-block flowsheet/palette icons (256 px PNG masters). LogicalName keeps
+       the plain file name so lookup is BlockCode + ".png". -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\icons\png\OP-*.png">
+      <LogicalName>%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

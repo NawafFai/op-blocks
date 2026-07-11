@@ -54,6 +54,52 @@ namespace OPBlocks.Core
         private readonly List<ResultRow> _results = new List<ResultRow>();
         private readonly List<string> _reportWarnings = new List<string>();
 
+        /// <summary>One calculated output row, as recorded via <see cref="Result"/>.</summary>
+        public sealed class ResultEntry
+        {
+            public string Label { get; set; }
+            public double Value { get; set; }
+            public string Unit { get; set; }
+            public string Format { get; set; }
+        }
+
+        /// <summary>
+        /// Snapshot of the outputs recorded during the last <see cref="Compute"/>.
+        /// Used by host adapters (e.g. the DWSIM-native layer) to expose results
+        /// as host properties without touching the report text.
+        /// </summary>
+        public ResultEntry[] GetResults()
+        {
+            var arr = new ResultEntry[_results.Count];
+            for (int i = 0; i < _results.Count; i++)
+            {
+                ResultRow r = _results[i];
+                arr[i] = new ResultEntry { Label = r.Label, Value = r.Value, Unit = r.Unit, Format = r.Format };
+            }
+            return arr;
+        }
+
+        /// <summary>Warnings recorded during the last <see cref="Compute"/>.</summary>
+        public string[] GetReportWarnings() { return _reportWarnings.ToArray(); }
+
+        /// <summary>
+        /// Declared layout of one port, in declaration order. Host adapters use this
+        /// to mirror the CAPE-OPEN port list onto their own connector model.
+        /// </summary>
+        public sealed class PortInfo
+        {
+            public string Name { get; internal set; }
+            public string Description { get; internal set; }
+            public bool IsInlet { get; internal set; }
+            public bool IsEnergy { get; internal set; }
+            public UnitPort Port { get; internal set; }
+        }
+
+        private readonly List<PortInfo> _portLayout = new List<PortInfo>();
+
+        /// <summary>Ports in the order the block declared them.</summary>
+        public IList<PortInfo> PortLayout { get { return _portLayout; } }
+
         /// <summary>Records a numeric output for the calculation report.</summary>
         protected void Result(string label, double value, string unit = "", string format = "0.####")
         {
@@ -210,6 +256,14 @@ namespace OPBlocks.Core
         {
             var port = new UnitPort(name, description, direction, CapePortType.CAPE_MATERIAL);
             Ports.Add(port);
+            _portLayout.Add(new PortInfo
+            {
+                Name = name,
+                Description = description,
+                IsInlet = direction == CapePortDirection.CAPE_INLET,
+                IsEnergy = false,
+                Port = port
+            });
             return port;
         }
 
@@ -217,6 +271,14 @@ namespace OPBlocks.Core
         {
             var port = new UnitPort(name, description, direction, CapePortType.CAPE_ENERGY);
             Ports.Add(port);
+            _portLayout.Add(new PortInfo
+            {
+                Name = name,
+                Description = description,
+                IsInlet = direction == CapePortDirection.CAPE_INLET,
+                IsEnergy = true,
+                Port = port
+            });
             return port;
         }
 

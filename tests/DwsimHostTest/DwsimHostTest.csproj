@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>OPBlocks.DwsimHostTest</RootNamespace>
+    <AssemblyName>DwsimHostTest</AssemblyName>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Not shipped; a developer/CI evidence tool that mimics DWSIM's unitops
+         loading pipeline against the locally installed DWSIM. -->
+    <DWSIMDir Condition="'$(DWSIMDir)' == ''">$(LOCALAPPDATA)\DWSIM</DWSIMDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="DWSIM.Interfaces">
+      <HintPath>$(DWSIMDir)\DWSIM.Interfaces.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.Drawing.SkiaSharp">
+      <HintPath>$(DWSIMDir)\DWSIM.Drawing.SkiaSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.Automation">
+      <HintPath>$(DWSIMDir)\DWSIM.Automation.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.FlowsheetBase">
+      <HintPath>$(DWSIMDir)\DWSIM.FlowsheetBase.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.Thermodynamics">
+      <HintPath>$(DWSIMDir)\DWSIM.Thermodynamics.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DWSIM.SharedClasses">
+      <HintPath>$(DWSIMDir)\DWSIM.SharedClasses.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SkiaSharp">
+      <HintPath>$(DWSIMDir)\SkiaSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="CapeOpen">
+      <HintPath>$(DWSIMDir)\CapeOpen.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <PackageReference Include="System.Memory" Version="4.5.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>
