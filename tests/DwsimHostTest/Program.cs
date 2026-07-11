@@ -195,6 +195,27 @@ namespace OPBlocks.DwsimHostTest
                 var props = pondSim.GetProperties(global::DWSIM.Interfaces.Enums.PropertyType.RO);
                 Check(props.Length > 0, "e2e: result properties exposed", props.Length + " outputs");
 
+                // QA §3: the block's reported outlet effect must MATCH what the host
+                // streams actually carry. EvapPond reports "Evaporation rate" in
+                // m3/day of water (kg/s x 86.4); the vapour stream holds the same
+                // water in kg/s. Any drift between report and stream is a defect.
+                object reported = pondSim.GetPropertyValue("Evaporation rate [m3/day]")
+                               ?? pondSim.GetPropertyValue("Evaporation rate");
+                if (reported is double repM3Day)
+                {
+                    double streamM3Day = fVap * 86.4;
+                    // 0.1% tolerance: the block uses MW(water)=18.0153 g/mol while the
+                    // stream mass comes from DWSIM's compound database — sub-0.01%
+                    // rounding, but structural mismatches are orders of magnitude.
+                    Check(Math.Abs(repM3Day - streamM3Day) < 1e-3 * Math.Max(streamM3Day, 1e-12),
+                          "e2e: block-reported outlet matches host stream",
+                          repM3Day.ToString("0.####") + " vs " + streamM3Day.ToString("0.####") + " m3/day");
+                }
+                else
+                {
+                    Check(false, "e2e: block-reported outlet matches host stream", "result row not found");
+                }
+
                 interf.ReleaseResources();
             }
             catch (Exception ex)

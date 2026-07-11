@@ -42,6 +42,7 @@ namespace OPBlocks.DWSIM
         private readonly string _prefix;
         private UnitBase _inner;
         private UnitBase.ResultEntry[] _loadedResults;
+        private string[] _loadedWarnings;
 
         protected DwsimUnitAdapter(string prefix, SimulationObjectClass objectClass)
         {
@@ -292,6 +293,7 @@ namespace OPBlocks.DWSIM
                 ForEachConnectedOutlet(inner, FinalizeOutlet);
 
                 _loadedResults = null; // live results now supersede any loaded snapshot
+                _loadedWarnings = null;
                 Calculated = true;
             }
             catch (CapeUserException cex)
@@ -568,6 +570,20 @@ namespace OPBlocks.DWSIM
             return _loadedResults ?? new UnitBase.ResultEntry[0];
         }
 
+        /// <summary>Results for the editor's Results tab (live or restored from file).</summary>
+        public UnitBase.ResultEntry[] DisplayResults { get { return CurrentResults(); } }
+
+        /// <summary>Model warnings for the Results tab (live or restored from file).</summary>
+        public string[] DisplayWarnings
+        {
+            get
+            {
+                string[] live = Inner.GetReportWarnings();
+                if (live != null && live.Length > 0) return live;
+                return _loadedWarnings ?? new string[0];
+            }
+        }
+
         // ------------------------------------------------------------------
         //  Persistence — parameters + last results survive save/reopen and clone.
         //  A single string property means DWSIM's XMLSerializer (file save,
@@ -597,6 +613,8 @@ namespace OPBlocks.DWSIM
                       .Append(r.Value.ToString("R", CultureInfo.InvariantCulture)).Append('\t')
                       .Append(r.Unit ?? "").Append('\n');
                 }
+                foreach (string w in DisplayWarnings)
+                    sb.Append("W\t").Append(w.Replace('\n', ' ').Replace('\t', ' ')).Append('\n');
                 return Convert.ToBase64String(Encoding.UTF8.GetBytes(sb.ToString()));
             }
             catch
@@ -612,9 +630,11 @@ namespace OPBlocks.DWSIM
             {
                 string text = Encoding.UTF8.GetString(Convert.FromBase64String(data));
                 var results = new List<UnitBase.ResultEntry>();
+                var warnings = new List<string>();
                 foreach (string line in text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     string[] f = line.Split('\t');
+                    if (f.Length >= 2 && f[0] == "W") { warnings.Add(f[1]); continue; }
                     if (f.Length >= 3 && f[0] == "P")
                     {
                         foreach (CapeParameter p in Inner.Parameters)
@@ -649,6 +669,7 @@ namespace OPBlocks.DWSIM
                     }
                 }
                 if (results.Count > 0) _loadedResults = results.ToArray();
+                if (warnings.Count > 0) _loadedWarnings = warnings.ToArray();
             }
             catch { /* corrupt state — keep defaults, never break file load */ }
         }

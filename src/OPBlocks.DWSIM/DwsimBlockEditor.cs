@@ -49,6 +49,15 @@ namespace OPBlocks.DWSIM
             foreach (UnitBase.PortInfo p in _adapter.Inner.PortLayout)
                 if (!p.IsEnergy) _ports.Add(p);
 
+            // Native-DWSIM layout: Connections | Parameters | Results tabs.
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var tabConn = new TabPage("Connections / التوصيلات") { BackColor = Color.White, Padding = new Padding(8) };
+            var tabParams = new TabPage("Parameters / البارامترات") { BackColor = Color.White };
+            var tabResults = new TabPage("Results / النتائج") { BackColor = Color.White, Padding = new Padding(8) };
+            tabs.TabPages.Add(tabConn);
+            tabs.TabPages.Add(tabParams);
+            tabs.TabPages.Add(tabResults);
+
             var conn = new GroupBox
             {
                 Text = "Connections / التوصيلات",
@@ -119,9 +128,20 @@ namespace OPBlocks.DWSIM
                 table.Controls.Add(create, 3, i);
             }
             conn.Controls.Add(table);
+            conn.Dock = DockStyle.Top;
+            tabConn.Controls.Add(new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 34,
+                Padding = new Padding(4, 8, 4, 0),
+                ForeColor = Color.FromArgb(120, 132, 128),
+                Text = "Pick an existing stream for each port, or click  + create stream  to add and connect one."
+            });
+            tabConn.Controls.Add(conn);
+            tabConn.Controls.SetChildIndex(conn, 1); // connections group above the hint
 
             // Parameters: the shared branded editor, embedded borderless.
-            var paramHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 4, 0, 0) };
+            var paramHost = new Panel { Dock = DockStyle.Fill };
             var paramEditor = new OpBlockEditor(_adapter.Inner)
             {
                 TopLevel = false,
@@ -130,14 +150,103 @@ namespace OPBlocks.DWSIM
             };
             paramHost.Controls.Add(paramEditor);
             paramEditor.Show();
+            tabParams.Controls.Add(paramHost);
 
-            Controls.Add(paramHost);
-            Controls.Add(conn);
+            BuildResultsTab(tabResults);
+            tabs.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabs.SelectedTab == tabResults) RefreshResults();
+            };
 
-            Size = new Size(720, 300 + conn.Height + 240);
-            MinimumSize = new Size(640, 480);
+            Controls.Add(tabs);
+
+            Size = new Size(760, 560);
+            MinimumSize = new Size(660, 480);
 
             RefreshStreamLists();
+            RefreshResults();
+        }
+
+        // ------------------------------------------------------------------
+        //  Results tab — warnings + calculated outputs, like native blocks
+        // ------------------------------------------------------------------
+
+        private ListView _resultsList;
+        private Label _warningsLabel;
+        private Label _statusLabel;
+
+        private void BuildResultsTab(TabPage tab)
+        {
+            _statusLabel = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 26,
+                Padding = new Padding(4, 6, 4, 0),
+                ForeColor = Color.FromArgb(120, 132, 128)
+            };
+
+            _warningsLabel = new Label
+            {
+                Dock = DockStyle.Top,
+                AutoSize = false,
+                Height = 0,
+                Padding = new Padding(8),
+                BackColor = Color.FromArgb(255, 248, 225),
+                ForeColor = Color.FromArgb(130, 90, 0),
+                Visible = false
+            };
+
+            _resultsList = new ListView
+            {
+                Dock = DockStyle.Fill,
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true,
+                HeaderStyle = ColumnHeaderStyle.Nonclickable
+            };
+            _resultsList.Columns.Add("Result", 300);
+            _resultsList.Columns.Add("Value", 140, HorizontalAlignment.Right);
+            _resultsList.Columns.Add("Unit", 120);
+
+            tab.Controls.Add(_resultsList);
+            tab.Controls.Add(_warningsLabel);
+            tab.Controls.Add(_statusLabel);
+        }
+
+        private void RefreshResults()
+        {
+            UnitBase.ResultEntry[] results = _adapter.DisplayResults;
+            string[] warnings = _adapter.DisplayWarnings;
+
+            _resultsList.Items.Clear();
+            foreach (UnitBase.ResultEntry r in results)
+            {
+                var item = new ListViewItem(r.Label);
+                string fmt = string.IsNullOrEmpty(r.Format) ? "0.####" : r.Format;
+                string val;
+                try { val = r.Value.ToString(fmt, System.Globalization.CultureInfo.InvariantCulture); }
+                catch { val = r.Value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture); }
+                item.SubItems.Add(val);
+                item.SubItems.Add(string.IsNullOrEmpty(r.Unit) || r.Unit == "-" ? "" : r.Unit);
+                _resultsList.Items.Add(item);
+            }
+
+            if (warnings.Length > 0)
+            {
+                _warningsLabel.Text = "⚠  " + string.Join("\n⚠  ", warnings);
+                int lines = warnings.Length + warnings.Sum(w => w.Length / 90);
+                _warningsLabel.Height = 18 + lines * 18;
+                _warningsLabel.Visible = true;
+            }
+            else
+            {
+                _warningsLabel.Visible = false;
+                _warningsLabel.Height = 0;
+            }
+
+            _statusLabel.Text = results.Length > 0
+                ? "Calculated outputs of " + _adapter.Inner.BlockCode + ":"
+                : "Not calculated yet — connect the ports and press Solve, then reopen this tab.";
         }
 
         // ------------------------------------------------------------------

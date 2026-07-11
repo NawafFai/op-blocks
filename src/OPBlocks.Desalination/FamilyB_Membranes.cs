@@ -52,6 +52,11 @@ namespace OPBlocks.Desalination
             double piBar = ProcessOps.OsmoticBar(molarity, R("VantHoffI"), tK);
             double ndp = Math.Max(0, R("AppliedPressure") - piBar);
             double Jw = R("WaterPermA") * ndp;                    // L/m2/h
+            if (ndp <= 0)
+                ReportWarning(string.Format(
+                    "No permeation: applied pressure ({0:0.#} bar) is at or below the feed osmotic pressure ({1:0.#} bar). " +
+                    "Raise AppliedPressure above {1:0.#} bar or dilute the feed.",
+                    R("AppliedPressure"), piBar));
             double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, f[wi] * 0.95);
             double recovery = f[wi] > 0 ? permWaterMol / f[wi] : 0;
             double saltPass = 1.0 - R("SaltRejection") / 100.0;
