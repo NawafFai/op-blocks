@@ -41,7 +41,6 @@ namespace OPBlocks.DWSIM
 
         private readonly string _prefix;
         private UnitBase _inner;
-        private OpBlockEditor _editor;
         private UnitBase.ResultEntry[] _loadedResults;
 
         protected DwsimUnitAdapter(string prefix, SimulationObjectClass objectClass)
@@ -680,9 +679,10 @@ namespace OPBlocks.DWSIM
         {
             try
             {
-                if (_editor == null || _editor.IsDisposed)
-                    _editor = new OpBlockEditor(Inner);
-                _editor.ShowDialog();
+                // Connections (pick/create the stream per port, like DWSIM's own
+                // unit editors) + the branded parameter grid.
+                using (var editor = new DwsimBlockEditor(this))
+                    editor.ShowDialog();
                 try { SetDirtyStatus(true); } catch { }
             }
             catch (Exception ex)
@@ -697,8 +697,7 @@ namespace OPBlocks.DWSIM
 
         public override void CloseEditForm()
         {
-            try { if (_editor != null && !_editor.IsDisposed) _editor.Close(); } catch { }
-            _editor = null;
+            // The editor is modal (ShowDialog) — it cannot outlive its caller.
         }
 
         public void PopulateEditorPanel(object container) { /* classic WinForms UI uses DisplayEditForm */ }
