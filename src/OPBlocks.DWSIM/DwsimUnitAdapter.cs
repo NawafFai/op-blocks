@@ -387,58 +387,164 @@ namespace OPBlocks.DWSIM
         //  Host property table
         // ------------------------------------------------------------------
 
+        // Unit handling — two classes of parameter/result units:
+        //
+        //  1. Units DWSIM's unit systems know (temperature, pressure, area, ...):
+        //     these convert with the user's selected unit set (SI/CGS/ENG/custom),
+        //     exactly like a built-in DWSIM block. GetPropertyUnit returns the
+        //     CURRENT set's unit string and values convert both ways.
+        //
+        //  2. Domain units DWSIM has no type for ("W/m2", "mg/g", "V", "%"):
+        //     the unit is baked into the property NAME and GetPropertyUnit returns
+        //     "" — handing DWSIM an unknown unit string pops a "There is no unit
+        //     named ..." warning dialog per property (seen on-machine, v1.1 test).
+
+        private sealed class UnitMap
+        {
+            public Func<IUnitsOfMeasure, string> CurrentUnit;
+            public Func<double, double> ToSI;
+            public Func<double, double> FromSI;
+        }
+
+        private static readonly Dictionary<string, UnitMap> DwsimUnitTypes =
+            new Dictionary<string, UnitMap>(StringComparer.Ordinal)
+            {
+                ["C"] = new UnitMap { CurrentUnit = su => su.temperature, ToSI = v => v + 273.15, FromSI = v => v - 273.15 },
+                ["bar"] = new UnitMap { CurrentUnit = su => su.pressure, ToSI = v => v * 1e5, FromSI = v => v / 1e5 },
+                ["Pa"] = new UnitMap { CurrentUnit = su => su.pressure, ToSI = v => v, FromSI = v => v },
+                ["m2"] = new UnitMap { CurrentUnit = su => su.area, ToSI = v => v, FromSI = v => v },
+                ["m"] = new UnitMap { CurrentUnit = su => su.distance, ToSI = v => v, FromSI = v => v },
+                ["m/s"] = new UnitMap { CurrentUnit = su => su.velocity, ToSI = v => v, FromSI = v => v },
+                ["kW"] = new UnitMap { CurrentUnit = su => su.heatflow, ToSI = v => v, FromSI = v => v },
+                ["kJ/kg"] = new UnitMap { CurrentUnit = su => su.enthalpy, ToSI = v => v, FromSI = v => v },
+                ["kg"] = new UnitMap { CurrentUnit = su => su.mass, ToSI = v => v, FromSI = v => v },
+                ["kg/s"] = new UnitMap { CurrentUnit = su => su.massflow, ToSI = v => v, FromSI = v => v },
+                ["s"] = new UnitMap { CurrentUnit = su => su.time, ToSI = v => v, FromSI = v => v },
+                ["min"] = new UnitMap { CurrentUnit = su => su.time, ToSI = v => v * 60.0, FromSI = v => v / 60.0 },
+            };
+
+        // "C" on a temperature DIFFERENCE (e.g. MVC's DeltaT) must convert without
+        // the 273.15 offset and uses the deltaT unit type.
+        private static readonly UnitMap DeltaTemperature =
+            new UnitMap { CurrentUnit = su => su.deltaT, ToSI = v => v, FromSI = v => v };
+
+        private static UnitMap ResolveUnitMap(string name, string unit)
+        {
+            if (string.IsNullOrEmpty(unit)) return null;
+            if (unit == "C" && name != null &&
+                (name.IndexOf("delta", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 name.IndexOf("approach", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 name.IndexOf("rise", StringComparison.OrdinalIgnoreCase) >= 0))
+                return DeltaTemperature;
+            UnitMap map;
+            return DwsimUnitTypes.TryGetValue(unit, out map) ? map : null;
+        }
+
+        private static IUnitsOfMeasure CurrentUnitsOrSI(IUnitsOfMeasure su)
+        {
+            if (su != null) return su;
+            return new global::DWSIM.SharedClasses.SystemsOfUnits.SI();
+        }
+
+        private static string ParamUnit(CapeParameter p)
+        {
+            var rp = p as RealParameter;
+            return rp != null ? rp.Unit : null;
+        }
+
+        private static string DisplayName(string name, string unit)
+        {
+            if (string.IsNullOrEmpty(unit) || unit == "-") return name;
+            if (ResolveUnitMap(name, unit) != null) return name; // unit shown via GetPropertyUnit
+            return name + " [" + unit + "]";
+        }
+
         public override string[] GetProperties(PropertyType proptype)
         {
             var list = new List<string>();
             if (proptype == PropertyType.RW || proptype == PropertyType.WR || proptype == PropertyType.ALL)
-                foreach (CapeParameter p in Inner.Parameters) list.Add(p.ComponentName);
+                foreach (CapeParameter p in Inner.Parameters) list.Add(DisplayName(p.ComponentName, ParamUnit(p)));
             if (proptype == PropertyType.RO || proptype == PropertyType.ALL)
-                foreach (UnitBase.ResultEntry r in CurrentResults()) list.Add(r.Label);
+                foreach (UnitBase.ResultEntry r in CurrentResults()) list.Add(DisplayName(r.Label, r.Unit));
             return list.ToArray();
+        }
+
+        private CapeParameter FindParameterByDisplayName(string prop)
+        {
+            foreach (CapeParameter p in Inner.Parameters)
+                if (string.Equals(DisplayName(p.ComponentName, ParamUnit(p)), prop, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p.ComponentName, prop, StringComparison.OrdinalIgnoreCase))
+                    return p;
+            return null;
         }
 
         public override object GetPropertyValue(string prop, IUnitsOfMeasure su = null)
         {
-            foreach (CapeParameter p in Inner.Parameters)
-                if (string.Equals(p.ComponentName, prop, StringComparison.OrdinalIgnoreCase))
-                    return ((ICapeParameter)p).value;
+            CapeParameter p = FindParameterByDisplayName(prop);
+            if (p != null)
+            {
+                object raw = ((ICapeParameter)p).value;
+                UnitMap map = ResolveUnitMap(p.ComponentName, ParamUnit(p));
+                if (map == null || !(raw is double || raw is int || raw is float)) return raw;
+                double si = map.ToSI(Convert.ToDouble(raw, CultureInfo.InvariantCulture));
+                return global::DWSIM.SharedClasses.SystemsOfUnits.Converter.ConvertFromSI(
+                    map.CurrentUnit(CurrentUnitsOrSI(su)), si);
+            }
             foreach (UnitBase.ResultEntry r in CurrentResults())
-                if (string.Equals(r.Label, prop, StringComparison.OrdinalIgnoreCase))
-                    return r.Value;
+            {
+                if (!string.Equals(DisplayName(r.Label, r.Unit), prop, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(r.Label, prop, StringComparison.OrdinalIgnoreCase)) continue;
+                UnitMap map = ResolveUnitMap(r.Label, r.Unit);
+                if (map == null) return r.Value;
+                return global::DWSIM.SharedClasses.SystemsOfUnits.Converter.ConvertFromSI(
+                    map.CurrentUnit(CurrentUnitsOrSI(su)), map.ToSI(r.Value));
+            }
             return base.GetPropertyValue(prop, su);
         }
 
         public override bool SetPropertyValue(string prop, object propval, IUnitsOfMeasure su = null)
         {
-            foreach (CapeParameter p in Inner.Parameters)
+            CapeParameter p = FindParameterByDisplayName(prop);
+            if (p == null) return false;
+            try
             {
-                if (string.Equals(p.ComponentName, prop, StringComparison.OrdinalIgnoreCase))
+                UnitMap map = ResolveUnitMap(p.ComponentName, ParamUnit(p));
+                if (map != null)
                 {
-                    try
-                    {
-                        ((ICapeParameter)p).value = propval;
-                        return true;
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new Exception("Cannot set " + prop + ": " + ex.Message);
-                    }
+                    double entered = Convert.ToDouble(propval, CultureInfo.InvariantCulture);
+                    double si = global::DWSIM.SharedClasses.SystemsOfUnits.Converter.ConvertToSI(
+                        map.CurrentUnit(CurrentUnitsOrSI(su)), entered);
+                    ((ICapeParameter)p).value = map.FromSI(si);
                 }
+                else
+                {
+                    ((ICapeParameter)p).value = propval;
+                }
+                return true;
             }
-            return false;
+            catch (Exception ex)
+            {
+                throw new Exception("Cannot set " + prop + ": " + ex.Message);
+            }
         }
 
         public override string GetPropertyUnit(string prop, IUnitsOfMeasure su = null)
         {
+            IUnitsOfMeasure units = CurrentUnitsOrSI(su);
             foreach (CapeParameter p in Inner.Parameters)
-                if (string.Equals(p.ComponentName, prop, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(DisplayName(p.ComponentName, ParamUnit(p)), prop, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p.ComponentName, prop, StringComparison.OrdinalIgnoreCase))
                 {
-                    var rp = p as RealParameter;
-                    return rp != null ? rp.Unit : "";
+                    UnitMap map = ResolveUnitMap(p.ComponentName, ParamUnit(p));
+                    return map != null ? map.CurrentUnit(units) : "";
                 }
             foreach (UnitBase.ResultEntry r in CurrentResults())
-                if (string.Equals(r.Label, prop, StringComparison.OrdinalIgnoreCase))
-                    return r.Unit ?? "";
+                if (string.Equals(DisplayName(r.Label, r.Unit), prop, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(r.Label, prop, StringComparison.OrdinalIgnoreCase))
+                {
+                    UnitMap map = ResolveUnitMap(r.Label, r.Unit);
+                    return map != null ? map.CurrentUnit(units) : "";
+                }
             return "";
         }
 

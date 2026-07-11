@@ -235,6 +235,36 @@ namespace OPBlocks.DwsimHostTest
                 object bmpObj = sim.GetIconBitmap();
                 Check(bmpObj is System.Drawing.Bitmap, code + ": palette icon bitmap", "");
 
+                // DWSIM's unit converter must never see a unit string it doesn't
+                // know — it pops "There is no unit named ..." dialogs per property.
+                // Allowed: "" (domain units live in the property name) or a string
+                // from the active unit set (temperature, pressure, area, ...).
+                var si = new global::DWSIM.SharedClasses.SystemsOfUnits.SI();
+                var known = new HashSet<string>(new[]
+                {
+                    "", si.temperature, si.deltaT, si.pressure, si.area, si.distance,
+                    si.velocity, si.heatflow, si.enthalpy, si.mass, si.massflow, si.time
+                });
+                var props = sim.GetProperties(global::DWSIM.Interfaces.Enums.PropertyType.ALL);
+                bool unitsClean = true;
+                foreach (string prop in props)
+                    if (!known.Contains(sim.GetPropertyUnit(prop) ?? ""))
+                        unitsClean = false;
+                Check(unitsClean, code + ": only DWSIM-known unit strings exposed", "");
+
+                // Unit-system conversion must round-trip: reading a value and writing
+                // it back must not drift the underlying block parameter.
+                bool roundtrip = true;
+                foreach (string prop in sim.GetProperties(global::DWSIM.Interfaces.Enums.PropertyType.RW))
+                {
+                    object v0 = sim.GetPropertyValue(prop);
+                    if (!(v0 is double d0)) continue;
+                    sim.SetPropertyValue(prop, d0);
+                    double d1 = Convert.ToDouble(sim.GetPropertyValue(prop));
+                    if (Math.Abs(d1 - d0) > 1e-9 * Math.Max(1.0, Math.Abs(d0))) roundtrip = false;
+                }
+                Check(roundtrip, code + ": unit conversion round-trips", "");
+
                 // State roundtrip through the persisted property.
                 PropertyInfo state = uo.GetType().GetProperty("BlockStateData");
                 string s1 = (string)state.GetValue(uo);
