@@ -31,6 +31,19 @@ namespace OPBlocks.Desalination
             AddRealParameter("AppliedPressure", "Applied feed pressure", 55, 5, 120, "bar");
             AddRealParameter("VantHoffI", "van 't Hoff dissociation factor", 2.0, 1, 4, "-");
             AddRealParameter("PumpEff", "High-pressure pump efficiency", 80, 30, 95, "%");
+            // The block's results table (owner spec): rendered by Aspen as the
+            // CAPE-OPEN output-parameter grid, values published in Compute.
+            AddOutputParameter("Recovery", "Water recovery", "%");
+            AddOutputParameter("PermeateFlow", "Permeate volumetric flow", "m3/h");
+            AddOutputParameter("PermeateTDS", "Permeate TDS", "ppm");
+            AddOutputParameter("SaltRejObs", "Observed salt rejection", "%");
+            AddOutputParameter("PumpPower", "High-pressure pump power", "kW");
+            AddOutputParameter("SEC", "Specific energy consumption", "kWh/m3");
+            AddOutputParameter("PermeateFlux", "Permeate water flux", "L/m2/h");
+            AddOutputParameter("OsmoticPress", "Feed osmotic pressure", "bar");
+            AddOutputParameter("NDP", "Net driving pressure", "bar");
+            AddOutputParameter("ConcentrateTDS", "Concentrate TDS", "ppm");
+            AddOutputParameter("FeedTDS", "Feed TDS", "ppm");
         }
         public override string BlockCode => "OP-RO";
 
@@ -41,6 +54,23 @@ namespace OPBlocks.Desalination
             if (f == null) { message = "Connect a feed stream."; return false; }
             if (ProcessOps.IndexOf(f.ComponentIds, "WATER", "H2O") < 0) { message = "Feed must contain water."; return false; }
             return true;
+        }
+
+        /// <summary>
+        /// Volumetric flow [m3/s] of a stream: package mass flow ÷ package density
+        /// (their units cancel, whatever mass unit the host uses); falls back to our
+        /// mole-derived kg/s over 1000 kg/m3 with a report warning.
+        /// </summary>
+        private double VolumetricM3S(ThermoProxy stream, double moleDerivedKgS, string label, bool haveMw)
+        {
+            double mPkg, rhoPkg;
+            if (stream.TryGetTotalMassFlowKgS(out mPkg) && mPkg > 1e-30 &&
+                stream.TryGetMassDensityKgM3(out rhoPkg))
+                return mPkg / rhoPkg;
+            if (!haveMw || moleDerivedKgS <= 1e-30) return 0.0;
+            ReportWarning("The property package did not supply a " + label +
+                          " mass flow/density pair — 1000 kg/m3 assumed for its volumetric flow.");
+            return moleDerivedKgS / 1000.0;
         }
 
         protected override void Compute()
@@ -61,7 +91,10 @@ namespace OPBlocks.Desalination
                     "No permeation: applied pressure ({0:0.#} bar) is at or below the feed osmotic pressure ({1:0.#} bar). " +
                     "Raise AppliedPressure above {1:0.#} bar or dilute the feed.",
                     R("AppliedPressure"), piBar));
-            double feedWaterMol = wi >= 0 ? f[wi] : 0.0;
+            // CAPE-OPEN mole flows are mol/s (spec; Aspen V14 and DWSIM both comply).
+            // The split physics below is ratio-based; the flux-vs-feed comparison
+            // uses these mol/s magnitudes directly.
+            double feedWaterMol = wi >= 0 ? f[wi] : 0.0;               // mol/s
             double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, feedWaterMol * 0.95);
             double recovery = feedWaterMol > 0 ? permWaterMol / feedWaterMol : 0;
             double saltPass = 1.0 - R("SaltRejection") / 100.0;
@@ -74,9 +107,8 @@ namespace OPBlocks.Desalination
             ProcessOps.SetSplitOutlets(perm, conc, permMol, concMol, tK, 101325, tK, p);
 
             // ---- mass-based results, thermo from the host package (R4) ----
-            // Molecular weights come from the package's component constants; the
-            // outlet-stream mass/volume figures below therefore reproduce the host's
-            // own stream values exactly (same flows, same MW source).
+            // TDS figures are MASS RATIOS of mole flows × package molecular weights,
+            // so they are immune to any host unit convention.
             double[] mw;
             bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
             if (!haveMw)
@@ -101,27 +133,18 @@ namespace OPBlocks.Desalination
                 }
             }
 
-            // Densities from the package at each stream's own state; 1000 kg/m3
-            // only as a stated fallback (§5 rule 5).
-            double rhoPerm, rhoFeed;
-            if (permKgS > 1e-30)
-            {
-                if (!perm.TryGetMassDensityKgM3(out rhoPerm))
-                {
-                    rhoPerm = 1000.0;
-                    ReportWarning("The property package did not supply a permeate density — 1000 kg/m3 assumed for volumetric results.");
-                }
-            }
-            else rhoPerm = 1000.0;
-            if (!feed.TryGetMassDensityKgM3(out rhoFeed))
-            {
-                rhoFeed = 1000.0;
-                if (feedKgS > 1e-30)
-                    ReportWarning("The property package did not supply a feed density — 1000 kg/m3 assumed for pump power.");
-            }
-
-            double permM3h = permKgS > 1e-30 ? permKgS / rhoPerm * 3600.0 : 0.0;
-            double feedM3s = feedKgS > 1e-30 ? feedKgS / rhoFeed : 0.0;
+            // ---- volumetric flows: package mass flow ÷ package density ----
+            // Some hosts return mass-basis quantities in their own mass unit (Aspen
+            // V14's socket answers g/s and g/m3 — proven live 2026-07-14, where
+            // mixing our kg/s with its g/m3 made volumetric results 1000× small).
+            // Dividing the package's own mass flow by its own density cancels the
+            // unit, so V̇ is correct on every host. Our mol/s × MW mass is only the
+            // fallback, paired with the 1000 kg/m3 fallback density (§5 rule 5).
+            double feedM3s = VolumetricM3S(feed, feedKgS, "feed", haveMw);
+            double permM3h = 0.0;
+            double permTotalMol = ProcessOps.Sum(permMol);
+            if (permTotalMol > 1e-30)
+                permM3h = VolumetricM3S(perm, permKgS, "permeate", haveMw) * 3600.0;
 
             // High-pressure pump duty: pressurise the whole feed from atmospheric
             // intake to the applied pressure (no energy-recovery device modelled).
@@ -151,6 +174,19 @@ namespace OPBlocks.Desalination
                 Result("Concentrate TDS", tdsConc, "ppm", "0.#");
                 Result("Feed TDS", tdsFeed, "ppm", "0.#");
             }
+
+            // publish the same figures to the host-rendered results table
+            SetOutputParameter("Recovery", recovery * 100);
+            SetOutputParameter("PermeateFlow", permM3h);
+            SetOutputParameter("PermeateTDS", tdsPerm);
+            SetOutputParameter("SaltRejObs", rejObs);
+            SetOutputParameter("PumpPower", pumpKW);
+            SetOutputParameter("SEC", sec);
+            SetOutputParameter("PermeateFlux", Jw);
+            SetOutputParameter("OsmoticPress", piBar);
+            SetOutputParameter("NDP", ndp);
+            SetOutputParameter("ConcentrateTDS", tdsConc);
+            SetOutputParameter("FeedTDS", tdsFeed);
         }
     }
 

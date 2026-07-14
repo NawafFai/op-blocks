@@ -76,7 +76,11 @@ namespace OPBlocks.UnitTests
 
         public static IEnumerable<object[]> CaseNames()
         {
-            return LoadCases().Select(c => new object[] { c.Name });
+            foreach (RefCase c in LoadCases())
+            {
+                yield return new object[] { c.Name, false };  // Thermo 1.0 (DWSIM / legacy hosts)
+                yield return new object[] { c.Name, true };   // Thermo 1.1 (Aspen Plus V14)
+            }
         }
 
         // ------------------------------------------------------------------
@@ -85,10 +89,18 @@ namespace OPBlocks.UnitTests
         private sealed class Rig
         {
             public ReverseOsmosis Block;
-            public MockMaterialObject Feed, Perm, Conc;
+            public IMockMaterial Feed, Perm, Conc;
         }
 
-        private static Rig BuildRig(RefCase c)
+        private static object NewMock(bool thermo11, string[] ids, double[] mw,
+                                      double[] flows = null, double tK = 298.15, double pPa = 101325.0)
+        {
+            if (thermo11)
+                return new Mock11MaterialObject(ids, mw, 1000.0, flows, tK, pPa);
+            return new MockMaterialObject(ids, mw, 1000.0, flows, tK, pPa);
+        }
+
+        private static Rig BuildRig(RefCase c, bool thermo11)
         {
             // Component ids: give the water slot a recognisable name.
             var ids = new string[c.NC];
@@ -96,12 +108,15 @@ namespace OPBlocks.UnitTests
                 ids[i] = (i == c.KH2O - 1) ? "WATER" : "SALT" + i;
 
             var feedFlows = c.FeedKmol.Select(x => x * 1000.0).ToArray(); // kmol/s -> mol/s
+            object feed = NewMock(thermo11, ids, c.MwGmol, feedFlows, c.TK, 101325.0);
+            object perm = NewMock(thermo11, ids, c.MwGmol);
+            object conc = NewMock(thermo11, ids, c.MwGmol);
             var rig = new Rig
             {
                 Block = new ReverseOsmosis(),
-                Feed = new MockMaterialObject(ids, c.MwGmol, 1000.0, feedFlows, c.TK, 101325.0),
-                Perm = new MockMaterialObject(ids, c.MwGmol),
-                Conc = new MockMaterialObject(ids, c.MwGmol),
+                Feed = (IMockMaterial)feed,
+                Perm = (IMockMaterial)perm,
+                Conc = (IMockMaterial)conc,
             };
 
             Set(rig.Block, "Area", c.Area);
@@ -111,9 +126,9 @@ namespace OPBlocks.UnitTests
             Set(rig.Block, "VantHoffI", c.VantHoff);
             Set(rig.Block, "PumpEff", c.PumpEff);
 
-            Connect(rig.Block, "Feed", rig.Feed);
-            Connect(rig.Block, "Permeate", rig.Perm);
-            Connect(rig.Block, "Concentrate", rig.Conc);
+            Connect(rig.Block, "Feed", feed);
+            Connect(rig.Block, "Permeate", perm);
+            Connect(rig.Block, "Concentrate", conc);
             return rig;
         }
 
@@ -159,10 +174,10 @@ namespace OPBlocks.UnitTests
         // ------------------------------------------------------------------
         [Theory]
         [MemberData(nameof(CaseNames))]
-        public void Case_MatchesCoreReference_Within01Percent(string name)
+        public void Case_MatchesCoreReference_Within01Percent(string name, bool thermo11)
         {
             RefCase c = LoadCases().First(x => x.Name == name);
-            Rig rig = BuildRig(c);
+            Rig rig = BuildRig(c, thermo11);
             rig.Block.Calculate();
 
             Close(c.PiBar, ResultOf(rig.Block, "Feed osmotic pressure"), "PIBAR [bar]");
@@ -198,11 +213,13 @@ namespace OPBlocks.UnitTests
         // ------------------------------------------------------------------
         //  2. determinism: 20 consecutive runs identical to < 1e-8
         // ------------------------------------------------------------------
-        [Fact]
-        public void TwentyConsecutiveRuns_AreIdentical()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void TwentyConsecutiveRuns_AreIdentical(bool thermo11)
         {
             RefCase c = LoadCases().First(x => x.Name == "dilute-nacl-defaults");
-            Rig rig = BuildRig(c);
+            Rig rig = BuildRig(c, thermo11);
 
             double[][] runs = new double[20][];
             double[][] permFlows = new double[20][];
@@ -229,11 +246,13 @@ namespace OPBlocks.UnitTests
         // ------------------------------------------------------------------
         //  3. results == outlet streams, exactly (not just 0.1%)
         // ------------------------------------------------------------------
-        [Fact]
-        public void ReportedResults_MatchOutletStreams_Exactly()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ReportedResults_MatchOutletStreams_Exactly(bool thermo11)
         {
             RefCase c = LoadCases().First(x => x.Name == "dilute-nacl-defaults");
-            Rig rig = BuildRig(c);
+            Rig rig = BuildRig(c, thermo11);
             rig.Block.Calculate();
 
             double[] permMol = rig.Perm.Flows;
@@ -288,9 +307,15 @@ namespace OPBlocks.UnitTests
             Assert.Equal(new[] { "Feed", "Concentrate", "Permeate" }, portNames);
 
             var defaults = new Dictionary<string, double>();
+            var outputs = new List<string>();
             foreach (CapeParameter p in block.Parameters)
-                defaults[p.ComponentName] = Convert.ToDouble(((ICapeParameter)p).value,
-                    CultureInfo.InvariantCulture);
+            {
+                if (UnitBase.IsInputParameter(p))
+                    defaults[p.ComponentName] = Convert.ToDouble(((ICapeParameter)p).value,
+                        CultureInfo.InvariantCulture);
+                else
+                    outputs.Add(p.ComponentName);
+            }
             Assert.Equal(6, defaults.Count);
             Assert.Equal(40.0, defaults["Area"]);
             Assert.Equal(1.0, defaults["WaterPermA"]);
@@ -298,6 +323,90 @@ namespace OPBlocks.UnitTests
             Assert.Equal(55.0, defaults["AppliedPressure"]);
             Assert.Equal(2.0, defaults["VantHoffI"]);
             Assert.Equal(80.0, defaults["PumpEff"]);
+
+            // the owner's results table, rendered by the host from output parameters
+            foreach (string required in new[] { "Recovery", "PermeateFlow", "PermeateTDS",
+                                                "SaltRejObs", "PumpPower", "SEC" })
+                Assert.Contains(required, outputs);
+        }
+
+        // ------------------------------------------------------------------
+        //  4b. Aspen mass-unit convention: the V14 socket answers mass-basis
+        //      quantities in g/s and g/m3, not kg (proven live 2026-07-14 —
+        //      mixing our kg with its g/m3 made volumetric/power results 1000×
+        //      small). The block must produce the SAME absolute results on such
+        //      a host, because package mass ÷ package density cancels the unit.
+        // ------------------------------------------------------------------
+        [Theory]
+        [MemberData(nameof(CaseNames))]
+        public void AspenGramMassConvention_MatchesCoreReference(string name, bool thermo11)
+        {
+            if (!thermo11) return; // the gram quirk is an Aspen (Thermo 1.1) behaviour
+
+            RefCase c = LoadCases().First(x => x.Name == name);
+            var ids = new string[c.NC];
+            for (int i = 0; i < c.NC; i++)
+                ids[i] = (i == c.KH2O - 1) ? "WATER" : "SALT" + i;
+
+            var feedFlows = c.FeedKmol.Select(x => x * 1000.0).ToArray(); // mol/s per spec
+            var feed = new Mock11MaterialObject(ids, c.MwGmol, 1000.0,
+                feedFlows, c.TK, 101325.0, massUnitScale: 1000.0);
+            var perm = new Mock11MaterialObject(ids, c.MwGmol, 1000.0, massUnitScale: 1000.0);
+            var conc = new Mock11MaterialObject(ids, c.MwGmol, 1000.0, massUnitScale: 1000.0);
+
+            var block = new ReverseOsmosis();
+            Set(block, "Area", c.Area);
+            Set(block, "WaterPermA", c.PermA);
+            Set(block, "SaltRejection", c.SaltRej);
+            Set(block, "AppliedPressure", c.AppPres);
+            Set(block, "VantHoffI", c.VantHoff);
+            Set(block, "PumpEff", c.PumpEff);
+            Connect(block, "Feed", feed);
+            Connect(block, "Permeate", perm);
+            Connect(block, "Concentrate", conc);
+            block.Calculate();
+
+            Close(c.Recov * 100.0, ResultOf(block, "Water recovery"), "RECOVERY [%]");
+            Close(c.QPerm, ResultOf(block, "Permeate flow"), "QPERM [m3/h]");
+            Close(c.PumpKW, ResultOf(block, "Pump power"), "PUMPKW [kW]");
+            Close(c.Sec, ResultOf(block, "Specific energy (SEC)"), "SEC [kWh/m3]");
+            Close(c.TdsPerm, ResultOf(block, "Permeate TDS"), "TDSPERM [ppm]");
+            Close(c.RejObs, ResultOf(block, "Salt rejection (observed)"), "SREJOBS [%]");
+
+            // outlets stay in the host's mol/s numbers
+            for (int i = 0; i < c.NC; i++)
+            {
+                double permF = perm.Flows == null ? 0.0 : perm.Flows[i];
+                double concF = conc.Flows == null ? 0.0 : conc.Flows[i];
+                Close(c.PermKmol[i], permF / 1000.0, "FPERM[" + i + "] [kmol/s]");
+                Close(c.ConcKmol[i], concF / 1000.0, "FCONC[" + i + "] [kmol/s]");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        //  5. host-rendered results table (output parameters) == streams
+        // ------------------------------------------------------------------
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void OutputParameters_MatchResults_AfterCalculate(bool thermo11)
+        {
+            RefCase c = LoadCases().First(x => x.Name == "dilute-nacl-defaults");
+            Rig rig = BuildRig(c, thermo11);
+            rig.Block.Calculate();
+
+            var outp = new Dictionary<string, double>();
+            foreach (CapeParameter p in rig.Block.Parameters)
+                if (!UnitBase.IsInputParameter(p))
+                    outp[p.ComponentName] = Convert.ToDouble(((ICapeParameter)p).value,
+                        CultureInfo.InvariantCulture);
+
+            AssertExact(ResultOf(rig.Block, "Water recovery"), outp["Recovery"], "Recovery");
+            AssertExact(ResultOf(rig.Block, "Permeate flow"), outp["PermeateFlow"], "PermeateFlow");
+            AssertExact(ResultOf(rig.Block, "Permeate TDS"), outp["PermeateTDS"], "PermeateTDS");
+            AssertExact(ResultOf(rig.Block, "Salt rejection (observed)"), outp["SaltRejObs"], "SaltRejObs");
+            AssertExact(ResultOf(rig.Block, "Pump power"), outp["PumpPower"], "PumpPower");
+            AssertExact(ResultOf(rig.Block, "Specific energy (SEC)"), outp["SEC"], "SEC");
         }
     }
 }

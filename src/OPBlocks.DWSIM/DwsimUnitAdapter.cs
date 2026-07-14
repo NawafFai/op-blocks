@@ -488,8 +488,11 @@ namespace OPBlocks.DWSIM
         public override string[] GetProperties(PropertyType proptype)
         {
             var list = new List<string>();
+            // Only CAPE_INPUT parameters are user-editable; CAPE_OUTPUT parameters
+            // are the host-rendered results table (DWSIM gets results via GetResults).
             if (proptype == PropertyType.RW || proptype == PropertyType.WR || proptype == PropertyType.ALL)
-                foreach (CapeParameter p in Inner.Parameters) list.Add(DisplayName(p.ComponentName, ParamUnit(p)));
+                foreach (CapeParameter p in Inner.Parameters)
+                    if (UnitBase.IsInputParameter(p)) list.Add(DisplayName(p.ComponentName, ParamUnit(p)));
             if (proptype == PropertyType.RO || proptype == PropertyType.ALL)
                 foreach (UnitBase.ResultEntry r in CurrentResults()) list.Add(DisplayName(r.Label, r.Unit));
             return list.ToArray();
@@ -498,9 +501,12 @@ namespace OPBlocks.DWSIM
         private CapeParameter FindParameterByDisplayName(string prop)
         {
             foreach (CapeParameter p in Inner.Parameters)
+            {
+                if (!UnitBase.IsInputParameter(p)) continue; // outputs are read via GetResults
                 if (string.Equals(DisplayName(p.ComponentName, ParamUnit(p)), prop, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(p.ComponentName, prop, StringComparison.OrdinalIgnoreCase))
                     return p;
+            }
             return null;
         }
 

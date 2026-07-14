@@ -13,16 +13,23 @@ namespace OPBlocks.UnitTests
     /// exercise the same van 't Hoff fallback branch the package-independent
     /// reference dataset (tests/OproValidation/cases.txt) is generated with.
     /// </summary>
-    internal sealed class MockMaterialObject : ICapeThermoMaterialObject
+    /// <summary>Common test surface over the Thermo 1.0 and 1.1 mocks.</summary>
+    internal interface IMockMaterial
+    {
+        double[] Flows { get; }
+        int FlashCount { get; }
+    }
+
+    internal sealed class MockMaterialObject : ICapeThermoMaterialObject, IMockMaterial
     {
         private readonly string[] _ids;
         private readonly double[] _mwGmol;
         private readonly double _densityKgM3;
 
-        public double[] Flows;          // mol/s, null until set on an outlet
+        public double[] Flows { get; set; }   // mol/s, null until set on an outlet
         public double TemperatureK;
         public double PressurePa;
-        public int FlashCount;          // CalcEquilibrium calls observed
+        public int FlashCount { get; set; }   // CalcEquilibrium calls observed
 
         public MockMaterialObject(string[] ids, double[] mwGmol, double densityKgM3 = 1000.0,
                                   double[] flows = null, double temperatureK = 298.15,
@@ -47,6 +54,17 @@ namespace OPBlocks.UnitTests
                 case "flow":
                     if (Flows == null) throw new InvalidOperationException("mock: no flows set on this stream yet");
                     return (double[])Flows.Clone();
+                case "totalflow":
+                    if (Flows == null) throw new InvalidOperationException("mock: no flows set on this stream yet");
+                    if (string.Equals(basis, "Mass", StringComparison.OrdinalIgnoreCase))
+                    {
+                        double kgS = 0;
+                        for (int i = 0; i < Flows.Length; i++) kgS += Flows[i] * _mwGmol[i] / 1000.0;
+                        return new[] { kgS };   // flows are mol/s in this mock
+                    }
+                    double total = 0;
+                    for (int i = 0; i < Flows.Length; i++) total += Flows[i];
+                    return new[] { total };
                 case "temperature":
                     return new[] { TemperatureK };
                 case "pressure":

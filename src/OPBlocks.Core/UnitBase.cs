@@ -291,6 +291,36 @@ namespace OPBlocks.Core
             return p;
         }
 
+        /// <summary>
+        /// Declares a read-only result the host renders in the block's own results
+        /// view (Aspen shows CAPE_OUTPUT parameters as the CAPE-OPEN block's result
+        /// table). Declare in the constructor; publish values with
+        /// <see cref="SetOutputParameter"/> at the end of <see cref="Compute"/>.
+        /// </summary>
+        protected RealParameter AddOutputParameter(string name, string description, string unit)
+        {
+            var p = new RealParameter(name, description, 0.0, 0.0,
+                                      -1e30, 1e30, CapeParamMode.CAPE_OUTPUT, unit);
+            Parameters.Add(p);
+            return p;
+        }
+
+        /// <summary>Publishes a calculated value to a declared output parameter.</summary>
+        protected void SetOutputParameter(string name, double value)
+        {
+            var p = FindParameter(name) as RealParameter;
+            if (p == null) return;
+            try { ((ICapeParameter)p).value = value; }
+            catch (Exception ex) { OpLog.Info(BlockCode, "Output parameter '" + name + "' rejected value: " + ex.Message); }
+        }
+
+        /// <summary>True when a parameter takes user input (shown on input forms).</summary>
+        public static bool IsInputParameter(CapeParameter p)
+        {
+            try { return ((ICapeParameter)p).Mode == CapeParamMode.CAPE_INPUT; }
+            catch { return true; }
+        }
+
         protected IntegerParameter AddIntParameter(string name, string description, int defaultValue,
                                                    int minValue, int maxValue)
         {

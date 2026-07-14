@@ -155,9 +155,15 @@ namespace OPBlocks.Core
 
             double rtOverVw = GasConstant * Math.Max(tempK, 1.0) / WaterMolarVolume; // Pa
 
+            // A water activity coefficient of exactly 1 means the package treats the
+            // solution as ideal (e.g. IDEAL with a molecular salt) — it carries no
+            // electrolyte information, and -ln(xw) alone misses dissociation by the
+            // factor i. Only a package that actually models the solution (γw ≠ 1,
+            // e.g. ELECNRTL apparent-component water activity) overrides van 't Hoff.
             double piPa;
-            double gammaW;
-            if (stream != null && stream.TryGetLiquidActivityCoefficient(waterIndex, out gammaW))
+            double gammaW = 1.0;
+            bool haveGamma = stream != null && stream.TryGetLiquidActivityCoefficient(waterIndex, out gammaW);
+            if (haveGamma && Math.Abs(gammaW - 1.0) > 1e-6)
             {
                 double aw = Clamp(gammaW * xw, 1e-12, 1.0);
                 piPa = -rtOverVw * Math.Log(aw);
@@ -165,10 +171,13 @@ namespace OPBlocks.Core
             else
             {
                 piPa = -vantHoffI * rtOverVw * Math.Log(xw);
-                if (warnings != null) warnings.Add(
-                    "Osmotic pressure estimated from ideal solution × van 't Hoff factor " +
-                    "(the selected property package did not supply a water activity). " +
-                    "For brines, an electrolyte-capable package gives more accurate results.");
+                if (warnings != null) warnings.Add(haveGamma
+                    ? "Osmotic pressure estimated from ideal solution × van 't Hoff factor " +
+                      "(the selected property package reports an ideal water activity, γw = 1). " +
+                      "For brines, an electrolyte-capable package gives more accurate results."
+                    : "Osmotic pressure estimated from ideal solution × van 't Hoff factor " +
+                      "(the selected property package did not supply a water activity). " +
+                      "For brines, an electrolyte-capable package gives more accurate results.");
             }
 
             double piBar = piPa / 1e5;
