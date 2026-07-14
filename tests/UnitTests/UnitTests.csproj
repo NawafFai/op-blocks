@@ -17,9 +17,14 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OPBlocks.Core\OPBlocks.Core.csproj" />
     <ProjectReference Include="..\..\src\OPBlocks.Demo\OPBlocks.Demo.csproj" />
+    <ProjectReference Include="..\..\src\OPBlocks.Desalination\OPBlocks.Desalination.csproj" />
     <Reference Include="CapeOpen">
       <HintPath>..\..\libs\CapeOpen\CapeOpen.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\OproValidation\cases.txt" Link="cases.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

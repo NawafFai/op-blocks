@@ -52,12 +52,33 @@ namespace OPBlocks.Core
             int n = f.Length;
             var prod = new double[n];
             var rej = new double[n];
-            for (int i = 0; i < n; i++)
+            SplitFlows(f, fracToProduct, prod, rej);
+            SetSplitOutlets(product, reject, prod, rej,
+                            productTempK, productPressPa, rejectTempK, rejectPressPa);
+        }
+
+        /// <summary>
+        /// The pure arithmetic of <see cref="SplitByRecovery"/>: fills
+        /// <paramref name="prod"/>/<paramref name="rej"/> from the feed flows and the
+        /// per-component product fraction. Blocks that also report mass-based results
+        /// use this so the reported numbers and the outlet streams come from the SAME
+        /// arrays (results == streams, exactly).
+        /// </summary>
+        public static void SplitFlows(double[] feedFlows, double[] fracToProduct, double[] prod, double[] rej)
+        {
+            for (int i = 0; i < feedFlows.Length; i++)
             {
                 double frac = i < fracToProduct.Length ? Clamp01(fracToProduct[i]) : 0.0;
-                prod[i] = f[i] * frac;
-                rej[i] = f[i] - prod[i];
+                prod[i] = feedFlows[i] * frac;
+                rej[i] = feedFlows[i] - prod[i];
             }
+        }
+
+        /// <summary>Sets both split outlets at their T,P, skipping a zero-flow outlet gracefully.</summary>
+        public static void SetSplitOutlets(
+            ThermoProxy product, ThermoProxy reject, double[] prod, double[] rej,
+            double productTempK, double productPressPa, double rejectTempK, double rejectPressPa)
+        {
             if (product != null && Sum(prod) > 1e-30) product.SetOutletTP(prod, productTempK, productPressPa);
             if (reject != null && Sum(rej) > 1e-30) reject.SetOutletTP(rej, rejectTempK, rejectPressPa);
         }

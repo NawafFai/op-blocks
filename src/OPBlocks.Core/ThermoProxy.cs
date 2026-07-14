@@ -24,6 +24,7 @@ namespace OPBlocks.Core
         private const string MoleBasis = "Mole";
 
         private readonly MaterialObjectWrapper _mo;
+        private readonly object _raw;
         private readonly string _portName;
 
         /// <param name="connectedObject">
@@ -36,6 +37,7 @@ namespace OPBlocks.Core
                 throw new CapeInvalidArgumentException(
                     "Port '" + portName + "' is not connected to a material stream.", 1);
             _portName = portName;
+            _raw = connectedObject;
             try
             {
                 _mo = new MaterialObjectWrapper(connectedObject);
@@ -157,6 +159,103 @@ namespace OPBlocks.Core
                 catch { /* try the next phase label */ }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Per-component molecular weights [g/mol] from the host property package
+        /// (CAPE-OPEN component constant "molecularWeight"), or false when the
+        /// package cannot supply them. Values reported in kg/mol by a host are
+        /// normalised to g/mol (no real compound is lighter than H2 ≈ 2 g/mol).
+        /// Never throws — callers fall back and say so in the report (§5 rule 5).
+        /// </summary>
+        public bool TryGetMolecularWeightsGmol(out double[] mw)
+        {
+            mw = null;
+            try
+            {
+                string[] ids = _mo.ComponentIds;
+                if (ids == null || ids.Length == 0) return false;
+
+                var thermo10 = _raw as ICapeThermoMaterialObject;
+                if (thermo10 == null) return false;
+                object res = thermo10.GetComponentConstant(new object[] { "molecularWeight" }, ids);
+                double[] vals = ToDoubleArray(res);
+                if (vals == null || vals.Length < ids.Length) return false;
+
+                var outv = new double[ids.Length];
+                double max = 0;
+                for (int i = 0; i < ids.Length; i++)
+                {
+                    double v = vals[i];
+                    if (double.IsNaN(v) || double.IsInfinity(v) || v <= 0) return false;
+                    outv[i] = v;
+                    if (v > max) max = v;
+                }
+                if (max < 1.5) // host answered in kg/mol
+                    for (int i = 0; i < outv.Length; i++) outv[i] *= 1000.0;
+                mw = outv;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Mass density [kg/m3] of the stream at its current state from the host
+        /// property package, or false when the package cannot supply it. Tries the
+        /// liquid phase first (our outlets are liquid brines), then Overall.
+        /// Never throws — callers fall back to 1000 kg/m3 and say so in the report.
+        /// </summary>
+        public bool TryGetMassDensityKgM3(out double rho)
+        {
+            rho = 0.0;
+            foreach (string phase in new[] { "liquid", "Liquid", "Liquid1", "Overall" })
+            {
+                try
+                {
+                    try { _mo.CalcProp(new[] { "density" }, new[] { phase }, Mixture); }
+                    catch { /* some hosts compute on GetProp directly */ }
+                    double[] r = _mo.GetProp("density", phase, null, Mixture, "Mass");
+                    if (r != null && r.Length > 0)
+                    {
+                        double d = r[0];
+                        if (!double.IsNaN(d) && !double.IsInfinity(d) && d > 0.1)
+                        {
+                            rho = d;
+                            return true;
+                        }
+                    }
+                }
+                catch { /* try the next phase label */ }
+            }
+            return false;
+        }
+
+        private static double[] ToDoubleArray(object o)
+        {
+            if (o == null) return null;
+            if (o is double[] d) return d;
+            if (o is object[] arr)
+            {
+                var r = new double[arr.Length];
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    try { r[i] = Convert.ToDouble(arr[i], System.Globalization.CultureInfo.InvariantCulture); }
+                    catch { return null; }
+                }
+                return r;
+            }
+            if (o is Array a)
+            {
+                var r = new double[a.Length];
+                int k = 0;
+                foreach (object item in a)
+                {
+                    try { r[k++] = Convert.ToDouble(item, System.Globalization.CultureInfo.InvariantCulture); }
+                    catch { return null; }
+                }
+                return r;
+            }
+            return null;
         }
 
         private double Scalar(string property, string basis)

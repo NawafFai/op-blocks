@@ -48,6 +48,8 @@ namespace OPBlocks.Desalination
             var feed = RequireMaterial("Feed"); var perm = RequireMaterial("Permeate"); var conc = RequireMaterial("Concentrate");
             double[] f = feed.GetOverallMoleFlows(); int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double tK = feed.Temperature, p = feed.Pressure;
+            if (wi < 0)
+                ReportWarning("Feed contains no water component — nothing permeates; the whole feed leaves as concentrate.");
 
             var osmNotes = new System.Collections.Generic.List<string>();
             double piBar = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes);
@@ -59,22 +61,96 @@ namespace OPBlocks.Desalination
                     "No permeation: applied pressure ({0:0.#} bar) is at or below the feed osmotic pressure ({1:0.#} bar). " +
                     "Raise AppliedPressure above {1:0.#} bar or dilute the feed.",
                     R("AppliedPressure"), piBar));
-            double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, f[wi] * 0.95);
-            double recovery = f[wi] > 0 ? permWaterMol / f[wi] : 0;
+            double feedWaterMol = wi >= 0 ? f[wi] : 0.0;
+            double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, feedWaterMol * 0.95);
+            double recovery = feedWaterMol > 0 ? permWaterMol / feedWaterMol : 0;
             double saltPass = 1.0 - R("SaltRejection") / 100.0;
 
             var frac = new double[f.Length];
             for (int i = 0; i < f.Length; i++) frac[i] = (i == wi) ? recovery : saltPass * recovery;
-            ProcessOps.SplitByRecovery(feed, perm, conc, frac, tK, 101325, tK, p);
+            var permMol = new double[f.Length];
+            var concMol = new double[f.Length];
+            ProcessOps.SplitFlows(f, frac, permMol, concMol);
+            ProcessOps.SetSplitOutlets(perm, conc, permMol, concMol, tK, 101325, tK, p);
 
-            double permKgS = permWaterMol * 0.0180153;
-            double permM3h = permKgS / 1000.0 * 3600.0;
-            double pumpKW = R("AppliedPressure") * 1e5 * (permKgS / 1000.0) / (R("PumpEff") / 100.0) / 1000.0;
+            // ---- mass-based results, thermo from the host package (R4) ----
+            // Molecular weights come from the package's component constants; the
+            // outlet-stream mass/volume figures below therefore reproduce the host's
+            // own stream values exactly (same flows, same MW source).
+            double[] mw;
+            bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
+            if (!haveMw)
+                ReportWarning("The property package did not supply molecular weights — " +
+                              "TDS and salt-rejection results are unavailable this run.");
+
+            double feedKgS = 0, permKgS = 0, concKgS = 0, permSaltKgS = 0, concSaltKgS = 0, feedSaltKgS = 0;
+            if (haveMw)
+            {
+                for (int i = 0; i < f.Length; i++)
+                {
+                    double kgMol = mw[i] / 1000.0;               // g/mol -> kg/mol
+                    feedKgS += f[i] * kgMol;
+                    permKgS += permMol[i] * kgMol;
+                    concKgS += concMol[i] * kgMol;
+                    if (i != wi)
+                    {
+                        feedSaltKgS += f[i] * kgMol;
+                        permSaltKgS += permMol[i] * kgMol;
+                        concSaltKgS += concMol[i] * kgMol;
+                    }
+                }
+            }
+
+            // Densities from the package at each stream's own state; 1000 kg/m3
+            // only as a stated fallback (§5 rule 5).
+            double rhoPerm, rhoFeed;
+            if (permKgS > 1e-30)
+            {
+                if (!perm.TryGetMassDensityKgM3(out rhoPerm))
+                {
+                    rhoPerm = 1000.0;
+                    ReportWarning("The property package did not supply a permeate density — 1000 kg/m3 assumed for volumetric results.");
+                }
+            }
+            else rhoPerm = 1000.0;
+            if (!feed.TryGetMassDensityKgM3(out rhoFeed))
+            {
+                rhoFeed = 1000.0;
+                if (feedKgS > 1e-30)
+                    ReportWarning("The property package did not supply a feed density — 1000 kg/m3 assumed for pump power.");
+            }
+
+            double permM3h = permKgS > 1e-30 ? permKgS / rhoPerm * 3600.0 : 0.0;
+            double feedM3s = feedKgS > 1e-30 ? feedKgS / rhoFeed : 0.0;
+
+            // High-pressure pump duty: pressurise the whole feed from atmospheric
+            // intake to the applied pressure (no energy-recovery device modelled).
+            double pumpPa = Math.Max(0, R("AppliedPressure") * 1e5 - 101325.0);
+            double pumpKW = R("PumpEff") > 0 ? pumpPa * feedM3s / (R("PumpEff") / 100.0) / 1000.0 : 0.0;
+            double sec = permM3h > 1e-12 ? pumpKW / permM3h : 0.0;
+
+            double tdsPerm = permKgS > 1e-30 ? permSaltKgS / permKgS * 1e6 : 0.0;   // ppm = mg/kg
+            double tdsConc = concKgS > 1e-30 ? concSaltKgS / concKgS * 1e6 : 0.0;
+            double tdsFeed = feedKgS > 1e-30 ? feedSaltKgS / feedKgS * 1e6 : 0.0;
+            double rejObs = tdsFeed > 1e-12 ? (1.0 - tdsPerm / tdsFeed) * 100.0 : 0.0;
+
             Result("Water recovery", recovery * 100, "%", "0.##");
-            Result("Permeate flux", Jw, "L/m2/h", "0.###");
             Result("Permeate flow", permM3h, "m3/h", "0.####");
+            if (haveMw)
+            {
+                Result("Permeate TDS", tdsPerm, "ppm", "0.#");
+                Result("Salt rejection (observed)", rejObs, "%", "0.##");
+            }
+            Result("Pump power", pumpKW, "kW", "0.###");
+            Result("Specific energy (SEC)", sec, "kWh/m3", "0.###");
+            Result("Permeate flux", Jw, "L/m2/h", "0.###");
             Result("Feed osmotic pressure", piBar, "bar", "0.##");
-            Result("Specific energy (pump)", permM3h > 0 ? pumpKW / permM3h : 0, "kWh/m3", "0.##");
+            Result("Net driving pressure", ndp, "bar", "0.##");
+            if (haveMw)
+            {
+                Result("Concentrate TDS", tdsConc, "ppm", "0.#");
+                Result("Feed TDS", tdsFeed, "ppm", "0.#");
+            }
         }
     }
 
