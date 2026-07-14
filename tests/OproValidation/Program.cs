@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using OPBlocks.Core;
@@ -7,168 +6,90 @@ using OPBlocks.Core;
 namespace OproValidation
 {
     /// <summary>
-    /// Generates the 9-case reference dataset for validating the OP-RO CAPE-OPEN
-    /// block against OPBlocks.Core, the correctness reference (HANDOFF.md §5).
-    /// The consumer is tests/UnitTests/RoCapeOpenValidationTests.cs, which replays
-    /// every case through the REAL ReverseOsmosis block (ports + parameters +
-    /// ThermoProxy + a mock Thermo 1.0 material object) and demands agreement
-    /// within 0.1%.
-    ///
-    /// Osmotic pressure comes from the REAL Core code path
-    /// (ProcessOps.OsmoticPressureBar, van 't Hoff fallback branch — the mock
-    /// supplies no activity coefficient, matching packages that cannot). The
-    /// downstream arithmetic mirrors ReverseOsmosis.Compute line by line
-    /// (FamilyB_Membranes.cs) — keep the two in lock-step.
-    ///
-    /// Unit convention: cases are stated in kmol/s; the replay feeds the block
-    /// mol/s (CAPE-OPEN SI) by scaling x1000, and split flows are written back
-    /// /1000. QPERM/PUMPKW/SEC/TDS are computed in the mol/s world. The mock
-    /// (and this generator) use rho = 1000 kg/m3 for feed and permeate; a live
-    /// host supplies real package densities instead.
-    ///
-    /// Output format v2 (tests/OproValidation/cases.txt), free-format reals:
-    ///   line 1: NCASES
-    ///   per case:
-    ///     name
-    ///     NC KH2O(1-based, 0=absent) TK
-    ///     MW(1..NC)           g/mol
-    ///     AREA PERMA SREJ APPRES VANTI PEFF
-    ///     F(1..NC)            feed, kmol/s
-    ///     PIBAR RECOV JW QPERM PUMPKW SEC TDSPERM TDSCONC SREJOBS
-    ///     FPERM(1..NC)        kmol/s
-    ///     FCONC(1..NC)        kmol/s
+    /// Emits a human-readable reference table for the OP-RO canonical cases by
+    /// calling the shared <see cref="RoModel"/> engine — the same code the
+    /// CAPE-OPEN block runs. This is a DOCUMENTATION artifact (cases.txt); the
+    /// authoritative approval gate lives in
+    /// tests/UnitTests/RoCapeOpenValidationTests.cs, which replays every case
+    /// through the real block and adds independent physical-range checks.
     /// </summary>
     internal static class Program
     {
+        private const double MwWater = 18.0153, MwNaCl = 58.442467, MwMgCl2 = 95.211;
+
         private sealed class Case
         {
             public string Name;
-            public double[] FeedKmol;   // kmol/s
-            public double[] MwGmol;     // g/mol per component
-            public int WaterIdx;        // 0-based, -1 = absent
-            public double TK = 298.15;
-            public double Area = 40, PermA = 1.0, SaltRej = 99.0,
-                          AppPres = 55, VantHoff = 2.0, PumpEff = 80;
+            public RoModel.Mode Mode = RoModel.Mode.Rating;
+            public RoModel.Erd Erd = RoModel.Erd.None;
+            public double Area = 40, PermA = 1.0, Rej = 99.5, Applied = 60, VantHoff = 2.0,
+                          PumpEff = 80, MaxRec = 50, TargetRec = 45, DesignFlux = 15, ErdEff = 96;
+            public double[] Feed; public double[] Mw; public int Wi; public double Tk = 298.15;
         }
-
-        private const double MwWater = 18.0153, MwNaCl = 58.443, MwKCl = 74.551, MwMgCl2 = 95.211;
 
         private static int Main(string[] args)
         {
-            var cases = new List<Case>
+            double[] sw = { 23.5, 0.263 };
+            var cases = new[]
             {
-                new Case { Name = "dilute-nacl-defaults",
-                    FeedKmol = new[] { 0.99, 0.01 }, MwGmol = new[] { MwWater, MwNaCl }, WaterIdx = 0 },
-                new Case { Name = "seawater-no-permeation",
-                    FeedKmol = new[] { 0.95, 0.03, 0.02 }, MwGmol = new[] { MwWater, MwNaCl, MwMgCl2 }, WaterIdx = 0 },
-                new Case { Name = "brackish",
-                    FeedKmol = new[] { 0.998, 0.001, 0.001 }, MwGmol = new[] { MwWater, MwNaCl, MwKCl }, WaterIdx = 0 },
-                new Case { Name = "pure-water-cap95",
-                    FeedKmol = new[] { 1.0 }, MwGmol = new[] { MwWater }, WaterIdx = 0 },
-                new Case { Name = "hot-feed-348K",
-                    FeedKmol = new[] { 0.99, 0.01 }, MwGmol = new[] { MwWater, MwNaCl }, WaterIdx = 0, TK = 348.15 },
-                new Case { Name = "custom-params",
-                    FeedKmol = new[] { 0.005, 0.985, 0.01 }, MwGmol = new[] { MwNaCl, MwWater, MwKCl }, WaterIdx = 1,
-                    Area = 500, PermA = 3.0, SaltRej = 99.9, AppPres = 70,
-                    VantHoff = 1.8, PumpEff = 65 },
-                new Case { Name = "no-water-clamp",
-                    FeedKmol = new[] { 0.5, 0.5 }, MwGmol = new[] { MwNaCl, MwMgCl2 }, WaterIdx = -1 },
-                new Case { Name = "zero-feed",
-                    FeedKmol = new[] { 0.0, 0.0 }, MwGmol = new[] { MwWater, MwNaCl }, WaterIdx = 0 },
-                new Case { Name = "trace-water-clamp",
-                    FeedKmol = new[] { 1e-14, 1.0 }, MwGmol = new[] { MwWater, MwNaCl }, WaterIdx = 0 },
+                new Case { Name = "seawater-rating", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0 },
+                new Case { Name = "seawater-rating-PX", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0, Erd = RoModel.Erd.PressureExchanger, ErdEff = 96 },
+                new Case { Name = "seawater-rating-turbine", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0, Erd = RoModel.Erd.Turbine, ErdEff = 80 },
+                new Case { Name = "design-45pct", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0, Mode = RoModel.Mode.Design },
+                new Case { Name = "design-45pct-PX", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0, Mode = RoModel.Mode.Design, Erd = RoModel.Erd.PressureExchanger },
+                new Case { Name = "brackish-high-recovery", Feed = new[]{55.0,0.11}, Mw = new[]{MwWater,MwNaCl}, Wi = 0, PermA = 6, Applied = 20, MaxRec = 85, TargetRec = 80 },
+                new Case { Name = "oversized-area-capped", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0, Area = 400, PermA = 5, Applied = 70 },
+                new Case { Name = "no-permeation", Feed = sw, Mw = new[]{MwWater,MwNaCl}, Wi = 0, Applied = 20 },
+                new Case { Name = "multisalt", Feed = new[]{23.5,0.20,0.06}, Mw = new[]{MwWater,MwNaCl,MwMgCl2}, Wi = 0 },
             };
 
             var ci = CultureInfo.InvariantCulture;
             string outPath = args.Length > 0 ? args[0] : "cases.txt";
             using (var w = new StreamWriter(outPath))
             {
-                w.WriteLine(cases.Count.ToString(ci));
+                w.WriteLine("OP-RO canonical reference cases — generated by RoModel (the block's own engine).");
+                w.WriteLine("Volumes use rho = 1000 kg/m3 (package-independent reference).");
+                w.WriteLine(new string('=', 100));
                 foreach (var c in cases)
                 {
-                    int n = c.FeedKmol.Length;
-                    // Core reference runs in mol/s
-                    var fMol = new double[n];
-                    for (int i = 0; i < n; i++) fMol[i] = c.FeedKmol[i] * 1000.0;
-
-                    // --- pi from the real Core routine (fallback branch) ---
-                    var notes = new List<string>();
-                    double piBar = ProcessOps.OsmoticPressureBar(
-                        null, fMol, c.WaterIdx, c.VantHoff, c.TK, notes);
-
-                    // --- mirror of ReverseOsmosis.Compute (keep in lock-step) ---
-                    double fw = c.WaterIdx >= 0 ? fMol[c.WaterIdx] : 0.0;
-                    double ndp = Math.Max(0, c.AppPres - piBar);
-                    double Jw = c.PermA * ndp;
-                    double permWaterMol = Math.Min(
-                        Jw * c.Area / 3600.0 / 0.0180153, fw * 0.95);
-                    double recovery = fw > 0 ? permWaterMol / fw : 0;
-                    double saltPass = 1.0 - c.SaltRej / 100.0;
-                    var perm = new double[n];
-                    var conc = new double[n];
-                    for (int i = 0; i < n; i++)
+                    var spec = new RoModel.Spec
                     {
-                        double frac = ProcessOps.Clamp01(
-                            i == c.WaterIdx ? recovery : saltPass * recovery);
-                        perm[i] = fMol[i] * frac;
-                        conc[i] = fMol[i] - perm[i];
-                    }
+                        CalcMode = c.Mode, ErdType = c.Erd, AreaM2 = c.Area, WaterPermA = c.PermA,
+                        SaltRejPct = c.Rej, AppliedBar = c.Applied, VantHoffI = c.VantHoff, PumpEffPct = c.PumpEff,
+                        MaxRecoveryPct = c.MaxRec, TargetRecoveryPct = c.TargetRec, DesignFluxLMH = c.DesignFlux, ErdEffPct = c.ErdEff,
+                    };
+                    double piFeed = ProcessOps.OsmoticPressureBar(null, c.Feed, c.Wi, c.VantHoff, c.Tk, null);
+                    RoModel.Split s = RoModel.Solve(spec, c.Feed, c.Wi, c.Mw, c.Tk, piFeed);
+                    double feedM3s = Mass(c.Feed, c.Mw) / 1000.0;
+                    double permM3s = ProcessOps.Sum(s.PermMol) > 1e-30 ? Mass(s.PermMol, c.Mw) / 1000.0 : 0.0;
+                    double concM3s = ProcessOps.Sum(s.ConcMol) > 1e-30 ? Mass(s.ConcMol, c.Mw) / 1000.0 : 0.0;
+                    RoModel.Energy e = RoModel.CalcEnergy(spec, s.AppliedBarUsed, feedM3s, permM3s, concM3s);
 
-                    // mass-based results (MW in g/mol; rho = 1000 kg/m3 in this
-                    // package-independent reference, matching the mock)
-                    double feedKgS = 0, permKgS = 0, concKgS = 0,
-                           feedSaltKgS = 0, permSaltKgS = 0, concSaltKgS = 0;
-                    for (int i = 0; i < n; i++)
-                    {
-                        double kgMol = c.MwGmol[i] / 1000.0;
-                        feedKgS += fMol[i] * kgMol;
-                        permKgS += perm[i] * kgMol;
-                        concKgS += conc[i] * kgMol;
-                        if (i != c.WaterIdx)
-                        {
-                            feedSaltKgS += fMol[i] * kgMol;
-                            permSaltKgS += perm[i] * kgMol;
-                            concSaltKgS += conc[i] * kgMol;
-                        }
-                    }
-                    const double rho = 1000.0;
-                    double permM3h = permKgS > 1e-30 ? permKgS / rho * 3600.0 : 0.0;
-                    double feedM3s = feedKgS > 1e-30 ? feedKgS / rho : 0.0;
-                    double pumpPa = Math.Max(0, c.AppPres * 1e5 - 101325.0);
-                    double pumpKW = c.PumpEff > 0
-                        ? pumpPa * feedM3s / (c.PumpEff / 100.0) / 1000.0 : 0.0;
-                    double sec = permM3h > 1e-12 ? pumpKW / permM3h : 0.0;
-                    double tdsPerm = permKgS > 1e-30 ? permSaltKgS / permKgS * 1e6 : 0.0;
-                    double tdsConc = concKgS > 1e-30 ? concSaltKgS / concKgS * 1e6 : 0.0;
-                    double tdsFeed = feedKgS > 1e-30 ? feedSaltKgS / feedKgS * 1e6 : 0.0;
-                    double rejObs = tdsFeed > 1e-12 ? (1.0 - tdsPerm / tdsFeed) * 100.0 : 0.0;
-
-                    w.WriteLine(c.Name);
-                    w.WriteLine(string.Format(ci, "{0} {1} {2:R}",
-                        n, c.WaterIdx + 1, c.TK));
-                    w.WriteLine(Join(ci, c.MwGmol, 1.0));
+                    w.WriteLine();
+                    w.WriteLine("[{0}]  mode={1}  ERD={2}", c.Name, c.Mode, c.Erd);
                     w.WriteLine(string.Format(ci,
-                        "{0:R} {1:R} {2:R} {3:R} {4:R} {5:R}",
-                        c.Area, c.PermA, c.SaltRej, c.AppPres,
-                        c.VantHoff, c.PumpEff));
-                    w.WriteLine(Join(ci, c.FeedKmol, 1.0));
+                        "  recovery={0:0.###}%  flux={1:0.##} LMH  piFeed={2:0.##}  piAvg={3:0.##}  NDP={4:0.##} bar",
+                        s.Recovery * 100, s.FluxLMH, s.PiFeedBar, s.PiAvgBar, s.NdpBar));
                     w.WriteLine(string.Format(ci,
-                        "{0:R} {1:R} {2:R} {3:R} {4:R} {5:R} {6:R} {7:R} {8:R}",
-                        piBar, recovery, Jw, permM3h, pumpKW, sec, tdsPerm, tdsConc, rejObs));
-                    w.WriteLine(Join(ci, perm, 1e-3));   // mol/s -> kmol/s
-                    w.WriteLine(Join(ci, conc, 1e-3));
+                        "  permTDS={0:0.#} ppm  concTDS={1:0.#} ppm  rejObs={2:0.###}%  capped={3}",
+                        s.TdsPermPpm, s.TdsConcPpm, s.SaltRejObsPct, s.RecoveryCapped));
+                    w.WriteLine(string.Format(ci,
+                        "  grossPump={0:0.###} kW  grossSEC={1:0.###}  ERDrec={2:0.###} kW  netPump={3:0.###} kW  netSEC={4:0.###}  saving={5:0.#}%",
+                        e.GrossPumpKW, e.SecGross, e.ErdRecoveredKW, e.NetPumpKW, e.SecNet, e.EnergySavingPct));
+                    if (c.Mode == RoModel.Mode.Design)
+                        w.WriteLine(string.Format(ci, "  requiredArea={0:0.##} m2  requiredPressure={1:0.##} bar",
+                            s.RequiredAreaM2, s.RequiredPressureBar));
                 }
             }
-            Console.WriteLine("wrote " + outPath + " (" + cases.Count + " cases)");
+            Console.WriteLine("wrote " + outPath + " (" + cases.Length + " cases)");
             return 0;
         }
 
-        private static string Join(CultureInfo ci, double[] v, double scale)
+        private static double Mass(double[] mol, double[] mw)
         {
-            var parts = new string[v.Length];
-            for (int i = 0; i < v.Length; i++)
-                parts[i] = (v[i] * scale).ToString("R", ci);
-            return string.Join(" ", parts);
+            double kg = 0;
+            for (int i = 0; i < mol.Length; i++) kg += mol[i] * mw[i] / 1000.0;
+            return kg;
         }
     }
 }

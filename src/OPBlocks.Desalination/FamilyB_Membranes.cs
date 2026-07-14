@@ -12,8 +12,8 @@ namespace OPBlocks.Desalination
     /// <summary>OP-RO — Reverse Osmosis.</summary>
     [ComVisible(true), Guid("3eb2efdd-d0a2-4e21-b9bb-53e1e25ea11f"), ProgId("OPBlocks.RO")]
     [CapeName("OP-RO"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("Reverse osmosis: pressure-driven desalination (solution-diffusion, van 't Hoff osmotic).")]
-    [CapeAbout("ONE PROCESS Blocks — OP-RO. (c) ONE PROCESS Simulation.")]
+    [CapeDescription("Reverse osmosis: solution-diffusion flux with average-osmotic-pressure driving force; Rating/Design modes; optional energy-recovery device.")]
+    [CapeAbout("ONE PROCESS Blocks — OP-RO. (c) ONE PROCESS Simulation. See the block report's 'Model & References' section for equations and literature.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class ReverseOsmosis : UnitBase
     {
@@ -25,25 +25,50 @@ namespace OPBlocks.Desalination
             AddMaterialPort("Feed", "Pressurised feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Concentrate", "Concentrate / brine (reject)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Permeate", "Permeate (product water)", CapePortDirection.CAPE_OUTLET);
-            AddRealParameter("Area", "Total membrane area", 40, 0.1, 1e5, "m2");
-            AddRealParameter("WaterPermA", "Water permeability A", 1.0, 0.05, 20, "L/m2/h/bar");
-            AddRealParameter("SaltRejection", "Observed salt rejection", 99.0, 50, 99.9, "%");
-            AddRealParameter("AppliedPressure", "Applied feed pressure", 55, 5, 120, "bar");
-            AddRealParameter("VantHoffI", "van 't Hoff dissociation factor", 2.0, 1, 4, "-");
+
+            // --- calculation mode ---
+            AddOptionParameter("CalcMode",
+                "Rating = given area & pressure, find performance; Design = given target recovery, find area & pressure",
+                "Rating", new[] { "Rating", "Design" });
+
+            // --- membrane & operating inputs (Rating) ---
+            AddRealParameter("Area", "Total membrane area (Rating input; computed in Design)", 40, 0.1, 1e5, "m2");
+            AddRealParameter("WaterPermA", "Water permeability A (seawater ≈ 1, brackish ≈ 3–8)", 1.0, 0.05, 20, "L/m2/h/bar");
+            AddRealParameter("SaltRejection", "Intrinsic salt rejection", 99.5, 50, 99.99, "%");
+            AddRealParameter("AppliedPressure", "Applied feed pressure (Rating input; computed in Design)", 60, 5, 120, "bar");
+            AddRealParameter("VantHoffI", "van 't Hoff dissociation factor (2 for NaCl)", 2.0, 1, 4, "-");
             AddRealParameter("PumpEff", "High-pressure pump efficiency", 80, 30, 95, "%");
-            // The block's results table (owner spec): rendered by Aspen as the
-            // CAPE-OPEN output-parameter grid, values published in Compute.
+            AddRealParameter("MaxRecovery", "Maximum design water recovery (single-stage SWRO ≈ 45–50%)", 50, 5, 95, "%");
+
+            // --- design-mode inputs (ignored in Rating) ---
+            AddRealParameter("TargetRecovery", "Target water recovery (Design mode)", 45, 5, 95, "%");
+            AddRealParameter("DesignFlux", "Design average permeate flux (Design mode)", 15, 2, 50, "L/m2/h");
+
+            // --- energy recovery device (optional) ---
+            AddOptionParameter("ERDType",
+                "Energy-recovery device on the brine: None, PX (pressure exchanger), or Turbine",
+                "None", new[] { "None", "PX", "Turbine" });
+            AddRealParameter("ERDEff", "ERD efficiency (used only when ERDType ≠ None; PX ≈ 96%, Turbine ≈ 80%)", 96, 40, 99, "%");
+
+            // --- results table (host-rendered CAPE-OPEN output grid) ---
             AddOutputParameter("Recovery", "Water recovery", "%");
             AddOutputParameter("PermeateFlow", "Permeate volumetric flow", "m3/h");
             AddOutputParameter("PermeateTDS", "Permeate TDS", "ppm");
             AddOutputParameter("SaltRejObs", "Observed salt rejection", "%");
-            AddOutputParameter("PumpPower", "High-pressure pump power", "kW");
-            AddOutputParameter("SEC", "Specific energy consumption", "kWh/m3");
+            AddOutputParameter("PumpPower", "Gross high-pressure pump power", "kW");
+            AddOutputParameter("SEC", "Gross specific energy (no ERD)", "kWh/m3");
+            AddOutputParameter("ERDRecoveredPower", "ERD recovered power", "kW");
+            AddOutputParameter("NetPumpPower", "Net pump power (after ERD)", "kW");
+            AddOutputParameter("NetSEC", "Net specific energy (after ERD)", "kWh/m3");
+            AddOutputParameter("EnergySaving", "Energy saving from ERD", "%");
             AddOutputParameter("PermeateFlux", "Permeate water flux", "L/m2/h");
             AddOutputParameter("OsmoticPress", "Feed osmotic pressure", "bar");
+            AddOutputParameter("OsmoticPressAvg", "Average osmotic pressure (feed–brine)", "bar");
             AddOutputParameter("NDP", "Net driving pressure", "bar");
             AddOutputParameter("ConcentrateTDS", "Concentrate TDS", "ppm");
             AddOutputParameter("FeedTDS", "Feed TDS", "ppm");
+            AddOutputParameter("RequiredArea", "Required membrane area (Design mode)", "m2");
+            AddOutputParameter("RequiredPressure", "Required applied pressure (Design mode)", "bar");
         }
         public override string BlockCode => "OP-RO";
 
@@ -73,120 +98,181 @@ namespace OPBlocks.Desalination
             return moleDerivedKgS / 1000.0;
         }
 
+        private static double MoleDerivedKgS(double[] flowsMol, double[] mwGmol)
+        {
+            if (mwGmol == null) return 0.0;
+            double kg = 0;
+            for (int i = 0; i < flowsMol.Length; i++) kg += flowsMol[i] * mwGmol[i] / 1000.0;
+            return kg;
+        }
+
         protected override void Compute()
         {
-            var feed = RequireMaterial("Feed"); var perm = RequireMaterial("Permeate"); var conc = RequireMaterial("Concentrate");
-            double[] f = feed.GetOverallMoleFlows(); int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
+            var feed = RequireMaterial("Feed");
+            var perm = RequireMaterial("Permeate");
+            var conc = RequireMaterial("Concentrate");
+            double[] f = feed.GetOverallMoleFlows();
+            int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double tK = feed.Temperature, p = feed.Pressure;
             if (wi < 0)
                 ReportWarning("Feed contains no water component — nothing permeates; the whole feed leaves as concentrate.");
 
+            // feed osmotic pressure: package water activity if available, else van 't Hoff
             var osmNotes = new System.Collections.Generic.List<string>();
-            double piBar = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes);
+            double piFeed = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes);
             foreach (string n in osmNotes) ReportWarning(n);
-            double ndp = Math.Max(0, R("AppliedPressure") - piBar);
-            double Jw = R("WaterPermA") * ndp;                    // L/m2/h
-            if (ndp <= 0)
-                ReportWarning(string.Format(
-                    "No permeation: applied pressure ({0:0.#} bar) is at or below the feed osmotic pressure ({1:0.#} bar). " +
-                    "Raise AppliedPressure above {1:0.#} bar or dilute the feed.",
-                    R("AppliedPressure"), piBar));
-            // CAPE-OPEN mole flows are mol/s (spec; Aspen V14 and DWSIM both comply).
-            // The split physics below is ratio-based; the flux-vs-feed comparison
-            // uses these mol/s magnitudes directly.
-            double feedWaterMol = wi >= 0 ? f[wi] : 0.0;               // mol/s
-            double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, feedWaterMol * 0.95);
-            double recovery = feedWaterMol > 0 ? permWaterMol / feedWaterMol : 0;
-            double saltPass = 1.0 - R("SaltRejection") / 100.0;
 
-            var frac = new double[f.Length];
-            for (int i = 0; i < f.Length; i++) frac[i] = (i == wi) ? recovery : saltPass * recovery;
-            var permMol = new double[f.Length];
-            var concMol = new double[f.Length];
-            ProcessOps.SplitFlows(f, frac, permMol, concMol);
-            ProcessOps.SetSplitOutlets(perm, conc, permMol, concMol, tK, 101325, tK, p);
-
-            // ---- mass-based results, thermo from the host package (R4) ----
-            // TDS figures are MASS RATIOS of mole flows × package molecular weights,
-            // so they are immune to any host unit convention.
             double[] mw;
             bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — " +
                               "TDS and salt-rejection results are unavailable this run.");
 
-            double feedKgS = 0, permKgS = 0, concKgS = 0, permSaltKgS = 0, concSaltKgS = 0, feedSaltKgS = 0;
-            if (haveMw)
+            var spec = new RoModel.Spec
             {
-                for (int i = 0; i < f.Length; i++)
-                {
-                    double kgMol = mw[i] / 1000.0;               // g/mol -> kg/mol
-                    feedKgS += f[i] * kgMol;
-                    permKgS += permMol[i] * kgMol;
-                    concKgS += concMol[i] * kgMol;
-                    if (i != wi)
-                    {
-                        feedSaltKgS += f[i] * kgMol;
-                        permSaltKgS += permMol[i] * kgMol;
-                        concSaltKgS += concMol[i] * kgMol;
-                    }
-                }
-            }
+                CalcMode = RoModel.ParseMode(Opt("CalcMode")),
+                AreaM2 = R("Area"),
+                WaterPermA = R("WaterPermA"),
+                SaltRejPct = R("SaltRejection"),
+                AppliedBar = R("AppliedPressure"),
+                VantHoffI = R("VantHoffI"),
+                PumpEffPct = R("PumpEff"),
+                MaxRecoveryPct = R("MaxRecovery"),
+                TargetRecoveryPct = R("TargetRecovery"),
+                DesignFluxLMH = R("DesignFlux"),
+                ErdType = RoModel.ParseErd(Opt("ERDType")),
+                ErdEffPct = R("ERDEff"),
+            };
 
-            // ---- volumetric flows: package mass flow ÷ package density ----
-            // Some hosts return mass-basis quantities in their own mass unit (Aspen
-            // V14's socket answers g/s and g/m3 — proven live 2026-07-14, where
-            // mixing our kg/s with its g/m3 made volumetric results 1000× small).
-            // Dividing the package's own mass flow by its own density cancels the
-            // unit, so V̇ is correct on every host. Our mol/s × MW mass is only the
-            // fallback, paired with the 1000 kg/m3 fallback density (§5 rule 5).
-            double feedM3s = VolumetricM3S(feed, feedKgS, "feed", haveMw);
-            double permM3h = 0.0;
-            double permTotalMol = ProcessOps.Sum(permMol);
-            if (permTotalMol > 1e-30)
-                permM3h = VolumetricM3S(perm, permKgS, "permeate", haveMw) * 3600.0;
+            RoModel.Split split = RoModel.Solve(spec, f, wi, haveMw ? mw : null, tK, piFeed);
 
-            // High-pressure pump duty: pressurise the whole feed from atmospheric
-            // intake to the applied pressure (no energy-recovery device modelled).
-            double pumpPa = Math.Max(0, R("AppliedPressure") * 1e5 - 101325.0);
-            double pumpKW = R("PumpEff") > 0 ? pumpPa * feedM3s / (R("PumpEff") / 100.0) / 1000.0 : 0.0;
-            double sec = permM3h > 1e-12 ? pumpKW / permM3h : 0.0;
+            // write the outlet streams (host re-flashes at T,P)
+            ProcessOps.SetSplitOutlets(perm, conc, split.PermMol, split.ConcMol, tK, 101325, tK, p);
 
-            double tdsPerm = permKgS > 1e-30 ? permSaltKgS / permKgS * 1e6 : 0.0;   // ppm = mg/kg
-            double tdsConc = concKgS > 1e-30 ? concSaltKgS / concKgS * 1e6 : 0.0;
-            double tdsFeed = feedKgS > 1e-30 ? feedSaltKgS / feedKgS * 1e6 : 0.0;
-            double rejObs = tdsFeed > 1e-12 ? (1.0 - tdsPerm / tdsFeed) * 100.0 : 0.0;
+            // volumetric flows from the property package (unit-safe: mass ÷ density)
+            double feedM3s = VolumetricM3S(feed, MoleDerivedKgS(f, mw), "feed", haveMw);
+            double permM3s = ProcessOps.Sum(split.PermMol) > 1e-30
+                ? VolumetricM3S(perm, MoleDerivedKgS(split.PermMol, mw), "permeate", haveMw) : 0.0;
+            double concM3s = ProcessOps.Sum(split.ConcMol) > 1e-30
+                ? VolumetricM3S(conc, MoleDerivedKgS(split.ConcMol, mw), "concentrate", haveMw) : 0.0;
 
-            Result("Water recovery", recovery * 100, "%", "0.##");
+            RoModel.Energy e = RoModel.CalcEnergy(spec, split.AppliedBarUsed, feedM3s, permM3s, concM3s);
+            double permM3h = permM3s * 3600.0;
+
+            EmitWarnings(spec, split, piFeed);
+
+            // ---- results (human report rows + host output-parameter grid) ----
+            Result("Water recovery", split.Recovery * 100, "%", "0.##");
             Result("Permeate flow", permM3h, "m3/h", "0.####");
             if (haveMw)
             {
-                Result("Permeate TDS", tdsPerm, "ppm", "0.#");
-                Result("Salt rejection (observed)", rejObs, "%", "0.##");
+                Result("Permeate TDS", split.TdsPermPpm, "ppm", "0.#");
+                Result("Salt rejection (observed)", split.SaltRejObsPct, "%", "0.##");
             }
-            Result("Pump power", pumpKW, "kW", "0.###");
-            Result("Specific energy (SEC)", sec, "kWh/m3", "0.###");
-            Result("Permeate flux", Jw, "L/m2/h", "0.###");
-            Result("Feed osmotic pressure", piBar, "bar", "0.##");
-            Result("Net driving pressure", ndp, "bar", "0.##");
+            Result("Gross pump power", e.GrossPumpKW, "kW", "0.###");
+            Result("Gross SEC", e.SecGross, "kWh/m3", "0.###");
+            if (spec.ErdType != RoModel.Erd.None)
+            {
+                Result("ERD recovered power", e.ErdRecoveredKW, "kW", "0.###");
+                Result("Net pump power", e.NetPumpKW, "kW", "0.###");
+                Result("Net SEC", e.SecNet, "kWh/m3", "0.###");
+                Result("Energy saving", e.EnergySavingPct, "%", "0.#");
+            }
+            Result("Permeate flux", split.FluxLMH, "L/m2/h", "0.###");
+            Result("Feed osmotic pressure", split.PiFeedBar, "bar", "0.##");
+            Result("Average osmotic pressure", split.PiAvgBar, "bar", "0.##");
+            Result("Net driving pressure", split.NdpBar, "bar", "0.##");
             if (haveMw)
             {
-                Result("Concentrate TDS", tdsConc, "ppm", "0.#");
-                Result("Feed TDS", tdsFeed, "ppm", "0.#");
+                Result("Concentrate TDS", split.TdsConcPpm, "ppm", "0.#");
+                Result("Feed TDS", split.TdsFeedPpm, "ppm", "0.#");
+            }
+            if (spec.CalcMode == RoModel.Mode.Design)
+            {
+                Result("Required membrane area", split.RequiredAreaM2, "m2", "0.##");
+                Result("Required applied pressure", split.RequiredPressureBar, "bar", "0.##");
             }
 
-            // publish the same figures to the host-rendered results table
-            SetOutputParameter("Recovery", recovery * 100);
+            SetOutputParameter("Recovery", split.Recovery * 100);
             SetOutputParameter("PermeateFlow", permM3h);
-            SetOutputParameter("PermeateTDS", tdsPerm);
-            SetOutputParameter("SaltRejObs", rejObs);
-            SetOutputParameter("PumpPower", pumpKW);
-            SetOutputParameter("SEC", sec);
-            SetOutputParameter("PermeateFlux", Jw);
-            SetOutputParameter("OsmoticPress", piBar);
-            SetOutputParameter("NDP", ndp);
-            SetOutputParameter("ConcentrateTDS", tdsConc);
-            SetOutputParameter("FeedTDS", tdsFeed);
+            SetOutputParameter("PermeateTDS", split.TdsPermPpm);
+            SetOutputParameter("SaltRejObs", split.SaltRejObsPct);
+            SetOutputParameter("PumpPower", e.GrossPumpKW);
+            SetOutputParameter("SEC", e.SecGross);
+            SetOutputParameter("ERDRecoveredPower", e.ErdRecoveredKW);
+            SetOutputParameter("NetPumpPower", e.NetPumpKW);
+            SetOutputParameter("NetSEC", e.SecNet);
+            SetOutputParameter("EnergySaving", e.EnergySavingPct);
+            SetOutputParameter("PermeateFlux", split.FluxLMH);
+            SetOutputParameter("OsmoticPress", split.PiFeedBar);
+            SetOutputParameter("OsmoticPressAvg", split.PiAvgBar);
+            SetOutputParameter("NDP", split.NdpBar);
+            SetOutputParameter("ConcentrateTDS", split.TdsConcPpm);
+            SetOutputParameter("FeedTDS", split.TdsFeedPpm);
+            SetOutputParameter("RequiredArea", split.RequiredAreaM2);
+            SetOutputParameter("RequiredPressure", split.RequiredPressureBar);
+        }
+
+        /// <summary>Non-blocking engineering advisories (owner spec §4).</summary>
+        private void EmitWarnings(RoModel.Spec spec, RoModel.Split split, double piFeed)
+        {
+            if (split.NdpBar <= 0)
+                ReportWarning(string.Format(
+                    "No net driving pressure: the applied pressure ({0:0.#} bar) does not exceed the average " +
+                    "osmotic pressure ({1:0.#} bar). Raise the pressure or dilute/reduce recovery.",
+                    split.AppliedBarUsed, split.PiAvgBar));
+
+            if (spec.CalcMode == RoModel.Mode.Rating && split.RecoveryCapped)
+                ReportWarning(string.Format(
+                    "Water recovery limited to the MaxRecovery design cap ({0:0.#}%); the membrane/pressure could " +
+                    "drive {1:0.#}%. The area may be oversized for this feed, or raise MaxRecovery if the design allows.",
+                    spec.MaxRecoveryPct, split.NaturalRecovery * 100));
+
+            if (spec.CalcMode == RoModel.Mode.Design && split.RecoveryCapped)
+                ReportWarning(string.Format(
+                    "Target recovery ({0:0.#}%) exceeds MaxRecovery ({1:0.#}%); designed at the cap instead.",
+                    spec.TargetRecoveryPct, spec.MaxRecoveryPct));
+
+            double pressUsed = split.AppliedBarUsed;
+            if (pressUsed > RoModel.MembraneMaxBar)
+                ReportWarning(string.Format(
+                    "Applied pressure ({0:0.#} bar) exceeds the typical seawater membrane element limit " +
+                    "(~{1:0} bar). Check the element rating or reduce recovery/flux.",
+                    pressUsed, RoModel.MembraneMaxBar));
+
+            if (split.Recovery > RoModel.LowBrineRecovery)
+                ReportWarning(string.Format(
+                    "Recovery ({0:0.#}%) is very high — the concentrate flow is small, raising the scaling/fouling " +
+                    "risk. Confirm the brine flow and antiscalant dosing.", split.Recovery * 100));
+        }
+
+        /// <summary>
+        /// Model &amp; References — rendered in the block report so the equations and
+        /// literature travel with the simulation (owner spec §2 documentation).
+        /// </summary>
+        protected override string BuildReport()
+        {
+            string body = base.BuildReport();
+            var sb = new System.Text.StringBuilder(body);
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Water flux (solution-diffusion):  Jw = A · (ΔP − Δπ)   [L·m⁻²·h⁻¹]");
+            sb.AppendLine("    A = water permeability, ΔP = applied − permeate pressure,");
+            sb.AppendLine("    Δπ = ½(π_feed + π_conc)  (average osmotic pressure across the module).");
+            sb.AppendLine("  Osmotic pressure:  π = i · c · R · T  (van 't Hoff), or −(RT/V̄w)·ln(a_w)");
+            sb.AppendLine("    when the property package supplies the water activity a_w.");
+            sb.AppendLine("  Recovery:  r = permeate water / feed water; capped at MaxRecovery.");
+            sb.AppendLine("  Rating mode solves r ↔ π_avg by a deterministic fixed-point iteration.");
+            sb.AppendLine("  Design mode:  required area = Q_perm / DesignFlux,");
+            sb.AppendLine("    required pressure = π_avg + DesignFlux / A.");
+            sb.AppendLine("  Pump power (whole feed from atmospheric):  W = Q_feed · ΔP / η_pump.");
+            sb.AppendLine("  Energy recovery:  W_ERD = Q_conc · ΔP · η_ERD  (PX ≈ 96%, turbine ≈ 80%);");
+            sb.AppendLine("    net pump = W − W_ERD;  SEC = W / Q_perm;  saving = (W − W_net)/W.");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Refs: Baker, Membrane Technology & Applications 3e (2012) ch.5;");
+            sb.AppendLine("        Fritzmann et al., Desalination 216 (2007) 1–76;");
+            sb.AppendLine("        Voutchkov, Desalination Engineering (2013) ch.8.");
+            return sb.ToString();
         }
     }
 

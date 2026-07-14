@@ -23,8 +23,5 @@
     </Reference>
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\OproValidation\cases.txt" Link="cases.txt" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 
 </Project>
