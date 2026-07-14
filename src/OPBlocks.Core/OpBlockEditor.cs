@@ -23,8 +23,11 @@ namespace OPBlocks.Core
     {
         private readonly UnitBase _unit;
         private readonly ErrorProvider _errors = new ErrorProvider();
-        private TableLayoutPanel _table;
+        private TableLayoutPanel _table;        // input parameters
         private Panel _scroll;
+        private TableLayoutPanel _resultsTable; // output parameters (read-only)
+        private Panel _resultsScroll;
+        private Label _resultsHint;
 
         private static readonly Color Accent = ColorTranslator.FromHtml("#0E7C66");
         private static readonly Color AccentSoft = Color.FromArgb(220, 239, 234);
@@ -109,47 +112,136 @@ namespace OPBlocks.Core
                 restore.Left = 16; restore.Top = 12;
             };
 
-            // --- scrollable parameter area ---
+            // --- tabs: Input | Results ---
+            var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(14, 4) };
+
+            var inputPage = new TabPage("Input  /  المدخلات") { BackColor = Color.White };
             _scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(16, 14, 16, 14) };
-            _table = new TableLayoutPanel
-            {
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                ColumnCount = 4,
-                Dock = DockStyle.Top,
-                CellBorderStyle = TableLayoutPanelCellBorderStyle.None
-            };
+            _table = NewGrid(4);
             _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210));
             _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
             _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
             _table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             _scroll.Controls.Add(_table);
+            inputPage.Controls.Add(_scroll);
 
-            Controls.Add(_scroll);
+            var resultsPage = new TabPage("Results  /  النتائج") { BackColor = Color.White };
+            _resultsScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(16, 12, 16, 14) };
+            _resultsHint = new Label
+            {
+                Dock = DockStyle.Top,
+                AutoSize = false,
+                Height = 34,
+                Padding = new Padding(2, 4, 2, 6),
+                ForeColor = Color.FromArgb(120, 132, 128),
+                Font = new Font("Segoe UI", 8.5f),
+                Text = ""
+            };
+            _resultsTable = NewGrid(3);
+            _resultsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            _resultsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+            _resultsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+            _resultsScroll.Controls.Add(_resultsTable);
+            _resultsScroll.Controls.Add(_resultsHint);
+            resultsPage.Controls.Add(_resultsScroll);
+
+            tabs.TabPages.Add(inputPage);
+            tabs.TabPages.Add(resultsPage);
+
+            Controls.Add(tabs);
             Controls.Add(footer);
             Controls.Add(header);
             AcceptButton = close;
         }
 
+        private static TableLayoutPanel NewGrid(int cols)
+        {
+            return new TableLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = cols,
+                Dock = DockStyle.Top,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.None
+            };
+        }
+
         private void BuildRows()
         {
+            // --- Input tab: editable CAPE_INPUT parameters only ---
             _table.SuspendLayout();
             _table.Controls.Clear();
             _table.RowStyles.Clear();
             _table.RowCount = 0;
-
-            AddHeaderCell("Parameter", 0);
-            AddHeaderCell("Value", 1);
-            AddHeaderCell("Unit", 2);
-            AddHeaderCell("Allowed / range", 3);
-
+            AddHeaderCell(_table, "Parameter", 0);
+            AddHeaderCell(_table, "Value", 1);
+            AddHeaderCell(_table, "Unit", 2);
+            AddHeaderCell(_table, "Allowed / range", 3, advanceRow: true);
             foreach (CapeParameter p in _unit.Parameters)
-                AddParameterRow(p);
-
+                if (UnitBase.IsInputParameter(p))
+                    AddParameterRow(p);
             _table.ResumeLayout();
+
+            // --- Results tab: read-only CAPE_OUTPUT parameters (from the last run) ---
+            _resultsTable.SuspendLayout();
+            _resultsTable.Controls.Clear();
+            _resultsTable.RowStyles.Clear();
+            _resultsTable.RowCount = 0;
+            AddHeaderCell(_resultsTable, "Result", 0);
+            AddHeaderCell(_resultsTable, "Value", 1);
+            AddHeaderCell(_resultsTable, "Unit", 2, advanceRow: true);
+            bool anyComputed = false;
+            foreach (CapeParameter p in _unit.Parameters)
+            {
+                if (UnitBase.IsInputParameter(p)) continue;
+                double v = ToDouble(((ICapeParameter)p).value);
+                if (Math.Abs(v) > 0) anyComputed = true;
+                AddResultRow(p, v);
+            }
+            _resultsHint.Text = anyComputed
+                ? "Results from the last calculation. Re-run the flowsheet (Run / F5) to refresh, then reopen."
+                : "Not calculated yet — run the flowsheet (Run / F5), then reopen this block to see results.\n"
+                  + "لم تُحسب بعد — شغّل المخطط ثم أعد فتح البلوك لرؤية النتائج.";
+            _resultsHint.Height = anyComputed ? 26 : 40;
+            _resultsTable.ResumeLayout();
         }
 
-        private void AddHeaderCell(string text, int col)
+        private void AddResultRow(CapeParameter p, double value)
+        {
+            int row = _resultsTable.RowCount;
+            var name = new Label
+            {
+                Text = p.ComponentDescription ?? p.ComponentName,
+                AutoSize = true,
+                Margin = new Padding(3, 7, 3, 6),
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.FromArgb(34, 48, 44)
+            };
+            _resultsTable.Controls.Add(name, 0, row);
+
+            var val = new Label
+            {
+                Text = value.ToString("0.####", CultureInfo.InvariantCulture),
+                AutoSize = true,
+                Margin = new Padding(3, 7, 3, 6),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Accent
+            };
+            _resultsTable.Controls.Add(val, 1, row);
+
+            string unit = (p is RealParameter rp) ? rp.Unit : "";
+            var unitLbl = new Label
+            {
+                Text = string.Equals(unit, "-") ? "" : (unit ?? ""),
+                AutoSize = true,
+                Margin = new Padding(3, 7, 3, 6),
+                ForeColor = Color.FromArgb(91, 106, 102)
+            };
+            _resultsTable.Controls.Add(unitLbl, 2, row);
+            _resultsTable.RowCount++;
+        }
+
+        private static void AddHeaderCell(TableLayoutPanel table, string text, int col, bool advanceRow = false)
         {
             var lbl = new Label
             {
@@ -159,8 +251,8 @@ namespace OPBlocks.Core
                 AutoSize = true,
                 Margin = new Padding(3, 4, 3, 8)
             };
-            _table.Controls.Add(lbl, col, _table.RowCount);
-            if (col == 3) _table.RowCount++;
+            table.Controls.Add(lbl, col, table.RowCount);
+            if (advanceRow) table.RowCount++;
         }
 
         private void AddParameterRow(CapeParameter p)

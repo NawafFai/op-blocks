@@ -145,9 +145,9 @@ namespace OPBlocks.UnitTests
             object perm = NewMock(t11, ids, c.Mw);
             object conc = NewMock(t11, ids, c.Mw);
             var block = new ReverseOsmosis();
-            SetOpt(block, "CalcMode", c.Mode == RoModel.Mode.Design ? "Design" : "Rating");
-            SetOpt(block, "ERDType", c.Erd == RoModel.Erd.PressureExchanger ? "PX"
-                                    : c.Erd == RoModel.Erd.Turbine ? "Turbine" : "None");
+            Set(block, "CalcMode", c.Mode == RoModel.Mode.Design ? 1 : 0);
+            Set(block, "ERDType", c.Erd == RoModel.Erd.PressureExchanger ? 1
+                                : c.Erd == RoModel.Erd.Turbine ? 2 : 0);
             Set(block, "Area", c.Area); Set(block, "WaterPermA", c.PermA); Set(block, "SaltRejection", c.Rej);
             Set(block, "AppliedPressure", c.Applied); Set(block, "VantHoffI", c.VantHoff); Set(block, "PumpEff", c.PumpEff);
             Set(block, "MaxRecovery", c.MaxRec); Set(block, "TargetRecovery", c.TargetRec);
@@ -162,14 +162,6 @@ namespace OPBlocks.UnitTests
                 if (string.Equals(p.ComponentName, param, StringComparison.OrdinalIgnoreCase))
                 { ((ICapeParameter)p).value = value; return; }
             throw new InvalidOperationException("parameter not found: " + param);
-        }
-
-        private static void SetOpt(CapeUnitBase block, string param, string value)
-        {
-            foreach (CapeParameter p in block.Parameters)
-                if (string.Equals(p.ComponentName, param, StringComparison.OrdinalIgnoreCase))
-                { ((ICapeParameter)p).value = value; return; }
-            throw new InvalidOperationException("option parameter not found: " + param);
         }
 
         private static void Connect(CapeUnitBase block, string portName, object material)
@@ -442,14 +434,20 @@ namespace OPBlocks.UnitTests
                 else outputs.Add(p.ComponentName);
             }
 
-            // realistic seawater defaults (owner spec §4 — no more 95%)
-            Assert.Equal("Rating", Convert.ToString(inputs["CalcMode"]));
-            Assert.Equal("None", Convert.ToString(inputs["ERDType"]));
+            // realistic seawater defaults (owner spec §4 — no more 95%). CalcMode &
+            // ERDType are integer-coded REAL params (0 = Rating / None) so Aspen's
+            // grid renders them — an OptionParameter would blank the whole grid.
+            Assert.Equal(0.0, Convert.ToDouble(inputs["CalcMode"], CultureInfo.InvariantCulture));
+            Assert.Equal(0.0, Convert.ToDouble(inputs["ERDType"], CultureInfo.InvariantCulture));
             Assert.Equal(50.0, Convert.ToDouble(inputs["MaxRecovery"], CultureInfo.InvariantCulture));
             Assert.Equal(60.0, Convert.ToDouble(inputs["AppliedPressure"], CultureInfo.InvariantCulture));
             foreach (string req in new[] { "Area", "WaterPermA", "SaltRejection", "VantHoffI", "PumpEff",
                                            "TargetRecovery", "DesignFlux", "ERDEff" })
                 Assert.True(inputs.ContainsKey(req), "missing input: " + req);
+            // every parameter must be a RealParameter (the only type Aspen's grid renders)
+            foreach (CapeParameter p in block.Parameters)
+                Assert.True(p is RealParameter, "parameter '" + p.ComponentName +
+                    "' must be a RealParameter for Aspen's grid to render it (was " + p.GetType().Name + ")");
 
             // owner's results table + the new ERD/design outputs
             foreach (string req in new[] { "Recovery", "PermeateFlow", "PermeateTDS", "SaltRejObs",

@@ -27,9 +27,16 @@ namespace OPBlocks.Desalination
             AddMaterialPort("Permeate", "Permeate (product water)", CapePortDirection.CAPE_OUTLET);
 
             // --- calculation mode ---
-            AddOptionParameter("CalcMode",
-                "Rating = given area & pressure, find performance; Design = given target recovery, find area & pressure",
-                "Rating", new[] { "Rating", "Design" });
+            // NOTE: mode/type selectors are REAL parameters with integer codes, NOT
+            // CAPE-OPEN option parameters. Aspen Plus's parameter grid renders a
+            // parameter only through the AspenTech extension IATCapeXRealParameterSpec,
+            // which the CO-LaN library implements ONLY on RealParameter. An
+            // OptionParameter (no AT spec) as the first parameter makes Aspen blank the
+            // ENTIRE grid — inputs and results alike (diagnosed live 2026-07-14). Integer
+            // codes keep every row visible in Aspen while DWSIM shows them too.
+            AddRealParameter("CalcMode",
+                "Calculation mode: 0 = Rating (area & pressure given -> performance); 1 = Design (target recovery given -> area & pressure)",
+                0, 0, 1, "-");
 
             // --- membrane & operating inputs (Rating) ---
             AddRealParameter("Area", "Total membrane area (Rating input; computed in Design)", 40, 0.1, 1e5, "m2");
@@ -45,10 +52,10 @@ namespace OPBlocks.Desalination
             AddRealParameter("DesignFlux", "Design average permeate flux (Design mode)", 15, 2, 50, "L/m2/h");
 
             // --- energy recovery device (optional) ---
-            AddOptionParameter("ERDType",
-                "Energy-recovery device on the brine: None, PX (pressure exchanger), or Turbine",
-                "None", new[] { "None", "PX", "Turbine" });
-            AddRealParameter("ERDEff", "ERD efficiency (used only when ERDType ≠ None; PX ≈ 96%, Turbine ≈ 80%)", 96, 40, 99, "%");
+            AddRealParameter("ERDType",
+                "Energy-recovery device on the brine: 0 = None; 1 = PX (pressure exchanger); 2 = Turbine",
+                0, 0, 2, "-");
+            AddRealParameter("ERDEff", "ERD efficiency (used only when ERDType > 0; PX ~ 96%, Turbine ~ 80%)", 96, 40, 99, "%");
 
             // --- results table (host-rendered CAPE-OPEN output grid) ---
             AddOutputParameter("Recovery", "Water recovery", "%");
@@ -130,7 +137,7 @@ namespace OPBlocks.Desalination
 
             var spec = new RoModel.Spec
             {
-                CalcMode = RoModel.ParseMode(Opt("CalcMode")),
+                CalcMode = RoModel.ModeFromCode(R("CalcMode")),
                 AreaM2 = R("Area"),
                 WaterPermA = R("WaterPermA"),
                 SaltRejPct = R("SaltRejection"),
@@ -140,7 +147,7 @@ namespace OPBlocks.Desalination
                 MaxRecoveryPct = R("MaxRecovery"),
                 TargetRecoveryPct = R("TargetRecovery"),
                 DesignFluxLMH = R("DesignFlux"),
-                ErdType = RoModel.ParseErd(Opt("ERDType")),
+                ErdType = RoModel.ErdFromCode(R("ERDType")),
                 ErdEffPct = R("ERDEff"),
             };
 
@@ -252,25 +259,26 @@ namespace OPBlocks.Desalination
         /// </summary>
         protected override string BuildReport()
         {
+            // ASCII only — Aspen's report viewer must render this cleanly.
             string body = base.BuildReport();
             var sb = new System.Text.StringBuilder(body);
             sb.AppendLine();
             sb.AppendLine("Model & References");
-            sb.AppendLine("  Water flux (solution-diffusion):  Jw = A · (ΔP − Δπ)   [L·m⁻²·h⁻¹]");
-            sb.AppendLine("    A = water permeability, ΔP = applied − permeate pressure,");
-            sb.AppendLine("    Δπ = ½(π_feed + π_conc)  (average osmotic pressure across the module).");
-            sb.AppendLine("  Osmotic pressure:  π = i · c · R · T  (van 't Hoff), or −(RT/V̄w)·ln(a_w)");
+            sb.AppendLine("  Water flux (solution-diffusion):  Jw = A * (dP - dPi)   [L/m2/h]");
+            sb.AppendLine("    A = water permeability, dP = applied - permeate pressure,");
+            sb.AppendLine("    dPi = 0.5*(pi_feed + pi_conc)  (average osmotic pressure over the module).");
+            sb.AppendLine("  Osmotic pressure:  pi = i * c * R * T  (van 't Hoff), or -(R*T/Vw)*ln(a_w)");
             sb.AppendLine("    when the property package supplies the water activity a_w.");
             sb.AppendLine("  Recovery:  r = permeate water / feed water; capped at MaxRecovery.");
-            sb.AppendLine("  Rating mode solves r ↔ π_avg by a deterministic fixed-point iteration.");
+            sb.AppendLine("  Rating mode solves r vs pi_avg by a deterministic bisection.");
             sb.AppendLine("  Design mode:  required area = Q_perm / DesignFlux,");
-            sb.AppendLine("    required pressure = π_avg + DesignFlux / A.");
-            sb.AppendLine("  Pump power (whole feed from atmospheric):  W = Q_feed · ΔP / η_pump.");
-            sb.AppendLine("  Energy recovery:  W_ERD = Q_conc · ΔP · η_ERD  (PX ≈ 96%, turbine ≈ 80%);");
-            sb.AppendLine("    net pump = W − W_ERD;  SEC = W / Q_perm;  saving = (W − W_net)/W.");
+            sb.AppendLine("    required pressure = pi_avg + DesignFlux / A.");
+            sb.AppendLine("  Pump power (whole feed from atmospheric):  W = Q_feed * dP / eff_pump.");
+            sb.AppendLine("  Energy recovery:  W_ERD = Q_conc * dP * eff_ERD  (PX ~96%, turbine ~80%);");
+            sb.AppendLine("    net pump = W - W_ERD;  SEC = W / Q_perm;  saving = (W - W_net)/W.");
             sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
             sb.AppendLine("  Refs: Baker, Membrane Technology & Applications 3e (2012) ch.5;");
-            sb.AppendLine("        Fritzmann et al., Desalination 216 (2007) 1–76;");
+            sb.AppendLine("        Fritzmann et al., Desalination 216 (2007) 1-76;");
             sb.AppendLine("        Voutchkov, Desalination Engineering (2013) ch.8.");
             return sb.ToString();
         }

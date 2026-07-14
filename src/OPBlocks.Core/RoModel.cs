@@ -274,20 +274,18 @@ namespace OPBlocks.Core
             }
         }
 
-        public static Erd ParseErd(string s)
+        /// <summary>Calculation mode from the integer-coded parameter (0 = Rating, 1 = Design).</summary>
+        public static Mode ModeFromCode(double code)
         {
-            if (string.IsNullOrEmpty(s)) return Erd.None;
-            string t = s.Trim().ToUpperInvariant();
-            if (t.StartsWith("PX") || t.Contains("EXCHANG")) return Erd.PressureExchanger;
-            if (t.Contains("TURB")) return Erd.Turbine;
-            return Erd.None;
+            return code >= 0.5 ? Mode.Design : Mode.Rating;
         }
 
-        public static Mode ParseMode(string s)
+        /// <summary>ERD type from the integer-coded parameter (0 = None, 1 = PX, 2 = Turbine).</summary>
+        public static Erd ErdFromCode(double code)
         {
-            if (!string.IsNullOrEmpty(s) && s.Trim().ToUpperInvariant().StartsWith("DES"))
-                return Mode.Design;
-            return Mode.Rating;
+            if (code >= 1.5) return Erd.Turbine;
+            if (code >= 0.5) return Erd.PressureExchanger;
+            return Erd.None;
         }
 
         private static double Clamp(double x, double lo, double hi) { return x < lo ? lo : (x > hi ? hi : x); }

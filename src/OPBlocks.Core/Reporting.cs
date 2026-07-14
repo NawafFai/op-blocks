@@ -70,7 +70,7 @@ namespace OPBlocks.Core
         {
             var head = new StringBuilder();
             head.AppendLine("================================================================");
-            head.AppendLine("  ONE PROCESS Blocks — " + _title);
+            head.AppendLine("  ONE PROCESS Blocks - " + _title);
             head.AppendLine("  generated " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             head.AppendLine("================================================================");
 
