@@ -12,11 +12,17 @@ namespace OPBlocks.Desalination
     //  performance and therefore the outlet split and reported duties.
     // ===================================================================
 
-    /// <summary>OP-EVAPPOND — Solar Evaporation Pond.</summary>
+    /// <summary>
+    /// OP-EVAPPOND — Solar Evaporation Pond. Climate-driven brine concentration by a
+    /// Dalton / aerodynamic mass-transfer law with a brine water-activity (salinity)
+    /// reduction and a solar surface-heating closure. Physics lives in
+    /// <see cref="EvapPondModel"/> (shared with the validation tests); see
+    /// docs/OP-EVAPPOND_MODEL.md.
+    /// </summary>
     [ComVisible(true), Guid("23c4d15d-67f2-40f3-ac66-215bde083047"), ProgId("OPBlocks.EvapPond")]
     [CapeName("OP-EVAPPOND"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("Solar evaporation pond: climate-driven brine concentration (Dalton-type flux).")]
-    [CapeAbout("ONE PROCESS Blocks — OP-EVAPPOND. (c) ONE PROCESS Simulation.")]
+    [CapeDescription("Solar evaporation pond: Dalton/aerodynamic evaporation flux with brine water-activity reduction; climate-driven brine concentration.")]
+    [CapeAbout("ONE PROCESS Blocks — OP-EVAPPOND. (c) ONE PROCESS Simulation. See the block report's 'Model & References' section for equations and literature.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class EvapPond : UnitBase
     {
@@ -26,15 +32,29 @@ namespace OPBlocks.Desalination
             AddMaterialPort("BrineFeed", "Brine feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Concentrate", "Concentrated brine", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Vapor", "Evaporated water (to atmosphere)", CapePortDirection.CAPE_OUTLET);
+
             AddRealParameter("Area", "Pond surface area", 10000, 1, 1e7, "m2");
             AddRealParameter("Depth", "Pond depth", 0.5, 0.05, 5, "m");
             AddRealParameter("Irradiance", "Solar irradiance", 600, 0, 1200, "W/m2");
             AddRealParameter("AirTemp", "Ambient air temperature", 30, -20, 60, "C");
             AddRealParameter("RH", "Relative humidity", 40, 0, 100, "%");
             AddRealParameter("WindSpeed", "Wind speed", 3, 0, 30, "m/s");
-            AddRealParameter("WaterActivity", "Surface water activity in brine", 0.98, 0.5, 1.0, "-");
-            AddRealParameter("CoeffA", "Dalton coefficient a", 2.0e-9, 0, 1e-6, "kg/m2/s/Pa");
-            AddRealParameter("CoeffB", "Dalton wind coefficient b", 1.5e-9, 0, 1e-6, "kg/m2/s/Pa/(m/s)");
+            AddRealParameter("WaterActivity", "Surface water activity of the brine (salinity reduction; 1 = fresh)", 0.98, 0.5, 1.0, "-");
+            AddRealParameter("CoeffA", "Dalton coefficient a (still-air)", 1.2e-8, 0, 1e-6, "kg/m2/s/Pa");
+            AddRealParameter("CoeffB", "Dalton wind coefficient b", 2.5e-9, 0, 1e-6, "kg/m2/s/Pa/(m/s)");
+            AddRealParameter("SolarHeating", "Surface warming above air per unit irradiance", 0.012, 0, 0.05, "C/(W/m2)");
+
+            AddOutputParameter("EvapRate", "Evaporation rate", "m3/day");
+            AddOutputParameter("EvapFlux", "Evaporation flux (depth basis)", "mm/day");
+            AddOutputParameter("ConcFactor", "Brine concentration factor", "x");
+            AddOutputParameter("DrivingForce", "Vapour-pressure driving force", "Pa");
+            AddOutputParameter("SurfaceTemp", "Estimated surface temperature", "C");
+            AddOutputParameter("SurfaceVP", "Brine surface vapour pressure", "Pa");
+            AddOutputParameter("AirVP", "Ambient vapour pressure", "Pa");
+            AddOutputParameter("ConcentrateTDS", "Concentrated brine TDS", "ppm");
+            AddOutputParameter("FeedTDS", "Feed brine TDS", "ppm");
+            AddOutputParameter("ResidenceTime", "Pond hydraulic residence time", "day");
+            AddOutputParameter("WaterEvaporated", "Water evaporated", "kg/s");
         }
         public override string BlockCode => "OP-EVAPPOND";
 
@@ -48,6 +68,27 @@ namespace OPBlocks.Desalination
             return true;
         }
 
+        /// <summary>Volumetric flow [m3/s]: package mass ÷ package density (unit-safe), else mole-derived kg/s over 1000 kg/m3 + warning.</summary>
+        private double VolumetricM3S(ThermoProxy stream, double moleDerivedKgS, string label, bool haveMw)
+        {
+            double mPkg, rhoPkg;
+            if (stream.TryGetTotalMassFlowKgS(out mPkg) && mPkg > 1e-30 &&
+                stream.TryGetMassDensityKgM3(out rhoPkg))
+                return mPkg / rhoPkg;
+            if (!haveMw || moleDerivedKgS <= 1e-30) return 0.0;
+            ReportWarning("The property package did not supply a " + label +
+                          " mass flow/density pair — 1000 kg/m3 assumed for its volumetric flow.");
+            return moleDerivedKgS / 1000.0;
+        }
+
+        private static double MoleDerivedKgS(double[] flowsMol, double[] mwGmol)
+        {
+            if (mwGmol == null) return 0.0;
+            double kg = 0;
+            for (int i = 0; i < flowsMol.Length; i++) kg += flowsMol[i] * mwGmol[i] / 1000.0;
+            return kg;
+        }
+
         protected override void Compute()
         {
             var feed = RequireMaterial("BrineFeed");
@@ -57,25 +98,106 @@ namespace OPBlocks.Desalination
             int wi = ProcessOps.IndexOf(ids, "WATER", "H2O");
             double[] f = feed.GetOverallMoleFlows();
             double tK = feed.Temperature, p = feed.Pressure;
+            if (wi < 0)
+                ReportWarning("Feed contains no water component — nothing evaporates; the whole feed leaves as concentrate.");
 
-            double surfC = ProcessOps.Clamp(tK - 273.15 + R("Irradiance") * 0.008, 0, 90);
-            double pSurf = R("WaterActivity") * ProcessOps.PsatWaterPa(surfC);
-            double pAir = (R("RH") / 100.0) * ProcessOps.PsatWaterPa(R("AirTemp"));
-            double flux = (R("CoeffA") + R("CoeffB") * R("WindSpeed")) * Math.Max(0, pSurf - pAir); // kg/m2/s
-            double evapKgS = flux * R("Area");
-            double evapMol = Math.Min(evapKgS / 0.0180153, f[wi] * 0.999);
+            double[] mw;
+            bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
+            if (!haveMw)
+                ReportWarning("The property package did not supply molecular weights — TDS results are unavailable this run.");
 
-            var vf = new double[f.Length]; vf[wi] = evapMol;
-            var cf = (double[])f.Clone(); cf[wi] -= evapMol;
-            vap.SetOutletTP(vf, R("AirTemp") + 273.15, p);
-            conc.SetOutletTP(cf, tK, p);
+            double feedM3s = VolumetricM3S(feed, MoleDerivedKgS(f, mw), "feed", haveMw);
 
-            double cf_factor = f[wi] > evapMol ? f[wi] / (f[wi] - evapMol) : 999;
-            Result("Evaporation rate", evapKgS * 86.4, "m3/day", "0.###");     // kg/s water ->  m3/day
-            Result("Evaporation flux", flux * 86400, "mm/day", "0.###");
-            Result("Concentration factor", cf_factor, "x", "0.###");
-            Result("Vapour-pressure driving force", pSurf - pAir, "Pa", "0.#");
-            if (cf_factor > 5) ReportWarning("High concentration factor — salt saturation / solids onset likely; add a solids handling step.");
+            var spec = new EvapPondModel.Spec
+            {
+                AreaM2 = R("Area"),
+                DepthM = R("Depth"),
+                IrradianceWm2 = R("Irradiance"),
+                AirTempC = R("AirTemp"),
+                RHpct = R("RH"),
+                WindSpeedMs = R("WindSpeed"),
+                WaterActivity = R("WaterActivity"),
+                CoeffA = R("CoeffA"),
+                CoeffB = R("CoeffB"),
+                SolarHeating = R("SolarHeating"),
+            };
+
+            EvapPondModel.Result res = EvapPondModel.Solve(spec, f, wi, haveMw ? mw : null, feedM3s);
+
+            // vapour leaves at ambient; brine stays at the feed temperature/pressure
+            if (ProcessOps.Sum(res.VaporMol) > 1e-30) vap.SetOutletTP(res.VaporMol, R("AirTemp") + 273.15, p);
+            conc.SetOutletTP(res.ConcMol, tK, p);
+
+            EmitWarnings(res);
+
+            Result("Evaporation rate", res.EvapM3Day, "m3/day", "0.###");
+            Result("Evaporation flux", res.EvapMmDay, "mm/day", "0.###");
+            Result("Concentration factor", res.ConcentrationFactor, "x", "0.###");
+            Result("Vapour-pressure driving force", res.DrivingForcePa, "Pa", "0.#");
+            Result("Surface temperature", res.SurfaceTempC, "C", "0.##");
+            Result("Surface vapour pressure", res.ESurfPa, "Pa", "0.#");
+            Result("Ambient vapour pressure", res.EAirPa, "Pa", "0.#");
+            Result("Pond residence time", res.ResidenceDays, "day", "0.##");
+            Result("Water evaporated", res.EvapKgS, "kg/s", "0.#####");
+            if (haveMw)
+            {
+                Result("Concentrate TDS", res.TdsConcPpm, "ppm", "0.#");
+                Result("Feed TDS", res.TdsFeedPpm, "ppm", "0.#");
+            }
+
+            SetOutputParameter("EvapRate", res.EvapM3Day);
+            SetOutputParameter("EvapFlux", res.EvapMmDay);
+            SetOutputParameter("ConcFactor", double.IsInfinity(res.ConcentrationFactor) ? 0.0 : res.ConcentrationFactor);
+            SetOutputParameter("DrivingForce", res.DrivingForcePa);
+            SetOutputParameter("SurfaceTemp", res.SurfaceTempC);
+            SetOutputParameter("SurfaceVP", res.ESurfPa);
+            SetOutputParameter("AirVP", res.EAirPa);
+            SetOutputParameter("ConcentrateTDS", res.TdsConcPpm);
+            SetOutputParameter("FeedTDS", res.TdsFeedPpm);
+            SetOutputParameter("ResidenceTime", res.ResidenceDays);
+            SetOutputParameter("WaterEvaporated", res.EvapKgS);
+        }
+
+        private void EmitWarnings(EvapPondModel.Result res)
+        {
+            if (res.DrivingForcePa <= 0)
+                ReportWarning("No evaporation: the ambient vapour pressure is at or above the brine surface vapour " +
+                              "pressure (humid/cool conditions, or a very saline low-activity brine). Check RH, air " +
+                              "temperature, irradiance and the brine water activity.");
+            if (res.FeedLimited)
+                ReportWarning("The pond would evaporate essentially all the feed water (climate flux x area exceeds the " +
+                              "feed). It is running as a batch evaporator, not a steady concentrator — check the pond " +
+                              "area against the feed rate, or add a solids-handling / harvest step.");
+            if (res.ConcentrationFactor > EvapPondModel.HighConcentrationFactor)
+                ReportWarning(string.Format(
+                    "High concentration factor ({0:0.#}x) — salt saturation / solids onset likely (halite, gypsum). " +
+                    "Add a solids-handling step and confirm the brine water activity at this salinity.",
+                    res.ConcentrationFactor));
+        }
+
+        /// <summary>Model &amp; References — travels with the simulation (ASCII, for Aspen's report viewer).</summary>
+        protected override string BuildReport()
+        {
+            string body = base.BuildReport();
+            var sb = new System.Text.StringBuilder(body);
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Evaporation (Dalton / aerodynamic mass transfer):");
+            sb.AppendLine("    E = (a + b*u) * (e_s - e_a)   [kg/m2/s]");
+            sb.AppendLine("    e_s = a_w * Psat(T_surf)   (brine surface vapour pressure; a_w < 1 lowers it),");
+            sb.AppendLine("    e_a = RH * Psat(T_air)     (ambient vapour pressure), u = wind speed.");
+            sb.AppendLine("    Psat = Antoine (water). Surface temperature closure:");
+            sb.AppendLine("    T_surf = T_air + SolarHeating * Irradiance.");
+            sb.AppendLine("  Water only evaporates (salts stay); concentration factor");
+            sb.AppendLine("    CF = feed water / (feed water - evaporated water).");
+            sb.AppendLine("  Evap flux [mm/day] = E * 86400 (1 kg/m2 water = 1 mm depth).");
+            sb.AppendLine("  Residence time = pond volume (Area*Depth) / feed volumetric flow.");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Refs: Penman, Proc. R. Soc. A 193 (1948) 120-145;");
+            sb.AppendLine("        Sartori, Solar Energy 68 (2000) 77-89;");
+            sb.AppendLine("        Salhotra et al., Water Resour. Res. 21 (1985) 1336-1344;");
+            sb.AppendLine("        Al-Shammiri, Desalination 150 (2002) 189-203.");
+            return sb.ToString();
         }
     }
 

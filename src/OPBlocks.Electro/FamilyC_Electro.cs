@@ -9,11 +9,17 @@ namespace OPBlocks.Electro
     //  Family C — Electrochemical & Ion Separation
     // ===================================================================
 
-    /// <summary>OP-ED — Electrodialysis stack.</summary>
+    /// <summary>
+    /// OP-ED — Electrodialysis stack. Ion transport diluate→concentrate under a DC
+    /// field, set by Faraday's law across N cell pairs; electro-osmotic water drag;
+    /// Ohmic stack current. Rating (voltage given → removal) and Design (target
+    /// removal → required current/voltage) modes. Physics lives in
+    /// <see cref="EdModel"/> (shared with the validation tests); see docs/OP-ED_MODEL.md.
+    /// </summary>
     [ComVisible(true), Guid("dba4d883-276c-4937-82d4-444c5f4d499a"), ProgId("OPBlocks.ED")]
     [CapeName("OP-ED"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("Electrodialysis: ion transport diluate→concentrate under a DC field (cell-pair model).")]
-    [CapeAbout("ONE PROCESS Blocks — OP-ED. (c) ONE PROCESS Simulation.")]
+    [CapeDescription("Electrodialysis: Faradaic ion transport diluate->concentrate across a cell-pair stack; Rating/Design modes.")]
+    [CapeAbout("ONE PROCESS Blocks — OP-ED. (c) ONE PROCESS Simulation. See the block report's 'Model & References' section for equations and literature.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class Electrodialysis : UnitBase
     {
@@ -24,12 +30,35 @@ namespace OPBlocks.Electro
             AddMaterialPort("DiluateOut", "Diluate out (product)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("ConcentrateIn", "Concentrate in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("ConcentrateOut", "Concentrate out", CapePortDirection.CAPE_OUTLET);
-            AddIntParameter("CellPairs", "Number of cell pairs", 100, 1, 1000);
-            AddRealParameter("AppliedVoltage", "Stack voltage", 24, 1, 500, "V");
+
+            // NOTE: mode selector and cell-pair COUNT are REAL parameters with
+            // integer semantics, NOT CAPE-OPEN option/integer parameters — Aspen's
+            // grid renders only RealParameter (IATCapeXRealParameterSpec); any other
+            // type blanks the whole grid (diagnosed live on OP-RO 2026-07-14). The
+            // old AddIntParameter("CellPairs") would have blanked OP-ED's form.
+            AddRealParameter("CalcMode",
+                "Calculation mode: 0 = Rating (voltage given -> removal); 1 = Design (target removal -> required current/voltage)",
+                0, 0, 1, "-");
+            AddRealParameter("CellPairs", "Number of cell pairs (integer)", 100, 1, 1000, "-");
+            AddRealParameter("AppliedVoltage", "Stack voltage (Rating input; computed in Design)", 24, 1, 500, "V");
             AddRealParameter("StackResistance", "Stack resistance", 5, 0.1, 500, "ohm");
-            AddRealParameter("CurrentEfficiency", "Current efficiency", 90, 20, 100, "%");
-            AddRealParameter("IonValence", "Ion valence z", 1, 1, 3, "-");
-            AddRealParameter("WaterTransport", "Water transport number", 8, 0, 30, "mol H2O/mol");
+            AddRealParameter("CurrentEfficiency", "Current (Faradaic) efficiency", 90, 20, 100, "%");
+            AddRealParameter("IonValence", "Ion valence z (integer)", 1, 1, 3, "-");
+            AddRealParameter("WaterTransport", "Electro-osmotic water transport", 8, 0, 30, "mol H2O/mol");
+            AddRealParameter("TargetRemoval", "Target salt removal (Design mode)", 90, 5, 98, "%");
+
+            AddOutputParameter("SaltRemoved", "Salt transferred to concentrate", "mol/s");
+            AddOutputParameter("SaltRemoval", "Salt removal from diluate", "%");
+            AddOutputParameter("DiluateTDSout", "Product (diluate out) TDS", "ppm");
+            AddOutputParameter("ConcentrateTDSout", "Concentrate out TDS", "ppm");
+            AddOutputParameter("FeedTDS", "Diluate feed TDS", "ppm");
+            AddOutputParameter("StackCurrent", "Stack current", "A");
+            AddOutputParameter("StackVoltageOut", "Stack voltage (used)", "V");
+            AddOutputParameter("StackPower", "Stack electrical power", "kW");
+            AddOutputParameter("SEC", "Specific energy per m3 product", "kWh/m3");
+            AddOutputParameter("WaterTransfer", "Electro-osmotic water to concentrate", "m3/h");
+            AddOutputParameter("RequiredCurrent", "Required current (Design mode)", "A");
+            AddOutputParameter("RequiredVoltage", "Required voltage (Design mode)", "V");
         }
         public override string BlockCode => "OP-ED";
 
@@ -42,6 +71,27 @@ namespace OPBlocks.Electro
             return true;
         }
 
+        /// <summary>Volumetric flow [m3/s]: package mass ÷ package density (unit-safe), else mole-derived kg/s over 1000 kg/m3 + warning.</summary>
+        private double VolumetricM3S(ThermoProxy stream, double moleDerivedKgS, string label, bool haveMw)
+        {
+            double mPkg, rhoPkg;
+            if (stream.TryGetTotalMassFlowKgS(out mPkg) && mPkg > 1e-30 &&
+                stream.TryGetMassDensityKgM3(out rhoPkg))
+                return mPkg / rhoPkg;
+            if (!haveMw || moleDerivedKgS <= 1e-30) return 0.0;
+            ReportWarning("The property package did not supply a " + label +
+                          " mass flow/density pair — 1000 kg/m3 assumed for its volumetric flow.");
+            return moleDerivedKgS / 1000.0;
+        }
+
+        private static double MoleDerivedKgS(double[] flowsMol, double[] mwGmol)
+        {
+            if (mwGmol == null) return 0.0;
+            double kg = 0;
+            for (int i = 0; i < flowsMol.Length; i++) kg += flowsMol[i] * mwGmol[i] / 1000.0;
+            return kg;
+        }
+
         protected override void Compute()
         {
             var dIn = RequireMaterial("DiluateIn"); var dOut = RequireMaterial("DiluateOut");
@@ -50,32 +100,110 @@ namespace OPBlocks.Electro
             double[] df = dIn.GetOverallMoleFlows(); double[] cf = cIn.GetOverallMoleFlows();
             double Td = dIn.Temperature, Tc = cIn.Temperature, Pd = dIn.Pressure, Pc = cIn.Pressure;
 
-            double current = R("AppliedVoltage") / R("StackResistance");
-            double eff = R("CurrentEfficiency") / 100.0;
-            double saltMove = ProcessOps.FaradayMoles(current, (int)Math.Round(R("IonValence")), eff) * I("CellPairs");
-            double saltDil = ProcessOps.Sum(df) - df[wi];
-            if (saltDil <= 1e-12)
+            double[] mw;
+            bool haveMw = dIn.TryGetMolecularWeightsGmol(out mw);
+            if (!haveMw)
+                ReportWarning("The property package did not supply molecular weights — TDS results are unavailable this run.");
+
+            var spec = new EdModel.Spec
+            {
+                CalcMode = EdModel.ModeFromCode(R("CalcMode")),
+                CellPairs = R("CellPairs"),
+                AppliedVoltageV = R("AppliedVoltage"),
+                StackResistanceOhm = R("StackResistance"),
+                CurrentEfficiencyPct = R("CurrentEfficiency"),
+                Valence = R("IonValence"),
+                WaterTransport = R("WaterTransport"),
+                TargetRemovalPct = R("TargetRemoval"),
+            };
+
+            EdModel.Result res = EdModel.Solve(spec, df, cf, wi, haveMw ? mw : null);
+            dOut.SetOutletTP(res.DiluateOut, Td, Pd);
+            cOut.SetOutletTP(res.ConcentrateOut, Tc, Pc);
+
+            // product volumetric flow (diluate out) straight from the package
+            double prodM3s = ProcessOps.Sum(res.DiluateOut) > 1e-30
+                ? VolumetricM3S(dOut, MoleDerivedKgS(res.DiluateOut, mw), "product", haveMw) : 0.0;
+            double prodM3h = prodM3s * 3600.0;
+            EdModel.Energy e = EdModel.CalcEnergy(res.StackVoltageV, res.StackCurrentA, prodM3h);
+            double waterM3h = res.WaterMovedMol * EdModel.WaterMwKgMol / 1000.0 * 3600.0;
+
+            EmitWarnings(spec, res);
+
+            Result("Salt removed", res.SaltMovedMol, "mol/s", "0.######");
+            Result("Salt removal", res.RemovalPct, "%", "0.##");
+            Result("Stack current", res.StackCurrentA, "A", "0.###");
+            Result("Stack voltage", res.StackVoltageV, "V", "0.##");
+            Result("Stack power", e.StackPowerKW, "kW", "0.###");
+            Result("Specific energy (SEC)", e.SEC, "kWh/m3", "0.###");
+            Result("Electro-osmotic water transfer", waterM3h, "m3/h", "0.#####");
+            if (haveMw)
+            {
+                Result("Diluate feed TDS", res.TdsDiluateInPpm, "ppm", "0.#");
+                Result("Product (diluate) TDS", res.TdsDiluateOutPpm, "ppm", "0.#");
+                Result("Concentrate TDS", res.TdsConcentrateOutPpm, "ppm", "0.#");
+            }
+            if (spec.CalcMode == EdModel.Mode.Design)
+            {
+                Result("Required current", res.StackCurrentA, "A", "0.###");
+                Result("Required voltage", res.StackVoltageV, "V", "0.##");
+            }
+
+            SetOutputParameter("SaltRemoved", res.SaltMovedMol);
+            SetOutputParameter("SaltRemoval", res.RemovalPct);
+            SetOutputParameter("DiluateTDSout", res.TdsDiluateOutPpm);
+            SetOutputParameter("ConcentrateTDSout", res.TdsConcentrateOutPpm);
+            SetOutputParameter("FeedTDS", res.TdsDiluateInPpm);
+            SetOutputParameter("StackCurrent", res.StackCurrentA);
+            SetOutputParameter("StackVoltageOut", res.StackVoltageV);
+            SetOutputParameter("StackPower", e.StackPowerKW);
+            SetOutputParameter("SEC", e.SEC);
+            SetOutputParameter("WaterTransfer", waterM3h);
+            SetOutputParameter("RequiredCurrent", spec.CalcMode == EdModel.Mode.Design ? res.StackCurrentA : 0.0);
+            SetOutputParameter("RequiredVoltage", spec.CalcMode == EdModel.Mode.Design ? res.StackVoltageV : 0.0);
+        }
+
+        private void EmitWarnings(EdModel.Spec spec, EdModel.Result res)
+        {
+            if (res.SaltInDiluateMol <= 1e-12)
                 ReportWarning("The diluate feed contains no dissolved species besides water — nothing to transfer. " +
                               "Add the salt/ions to the diluate stream composition.");
-            saltMove = Math.Min(saltMove, saltDil * 0.98);
-            double waterMove = Math.Min(saltMove * R("WaterTransport"), df[wi] * 0.5);
+            if (res.DepletionLimited)
+                ReportWarning(string.Format(
+                    "Limiting-current / depletion regime: the applied current could transfer {0:0.####E+0} mol/s of ions " +
+                    "but the diluate only supplies enough for {1:0.####E+0} mol/s ({2:0.#}% removal cap). " +
+                    "Above the limiting current density, extra voltage splits water instead of moving ions — " +
+                    "stage the stack or lower the current.",
+                    res.FaradaicSaltMol, res.SaltMovedMol, EdModel.MaxDepletion * 100));
+            if (spec.CalcMode == EdModel.Mode.Design && res.StackVoltageV > 500)
+                ReportWarning(string.Format(
+                    "Design requires {0:0.#} V across the stack, beyond a typical single-stack limit (~500 V). " +
+                    "Split into multiple electrical stages or add cell pairs.", res.StackVoltageV));
+        }
 
-            var dof = (double[])df.Clone(); var cof = (double[])cf.Clone();
-            for (int i = 0; i < df.Length; i++)
-            {
-                if (i == wi) { dof[i] -= waterMove; cof[i] += waterMove; }
-                else if (saltDil > 0) { double m = saltMove * df[i] / saltDil; dof[i] -= m; cof[i] += m; }
-            }
-            dOut.SetOutletTP(dof, Td, Pd);
-            cOut.SetOutletTP(cof, Tc, Pc);
-
-            double powerKW = R("AppliedVoltage") * current / 1000.0;
-            double dilM3h = df[wi] * 0.0180153 / 1000.0 * 3600.0;
-            Result("Salt removed", saltMove, "mol/s", "0.####");
-            Result("Salt removal", saltDil > 0 ? saltMove / saltDil * 100 : 0, "%", "0.#");
-            Result("Stack current", current, "A", "0.##");
-            Result("Specific energy consumption", dilM3h > 0 ? powerKW / dilM3h : 0, "kWh/m3", "0.###");
-            if (saltMove >= saltDil * 0.97) ReportWarning("Near limiting current — diluate nearly depleted; check current density.");
+        /// <summary>Model &amp; References — travels with the simulation (ASCII, for Aspen's report viewer).</summary>
+        protected override string BuildReport()
+        {
+            string body = base.BuildReport();
+            var sb = new System.Text.StringBuilder(body);
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Ion transport (Faraday's law across N cell pairs):");
+            sb.AppendLine("    N_salt = eta * I * N_cp / (z * F)   [mol/s]");
+            sb.AppendLine("    eta = current efficiency, I = stack current, N_cp = cell pairs,");
+            sb.AppendLine("    z = ion valence, F = 96485 C/mol (Faraday constant).");
+            sb.AppendLine("  Stack current (Rating):  I = AppliedVoltage / StackResistance (Ohm's law).");
+            sb.AppendLine("  Design mode inverts Faraday: I_req = N_salt_target * z * F / (eta * N_cp),");
+            sb.AppendLine("    V_req = I_req * StackResistance.");
+            sb.AppendLine("  Water transport (electro-osmotic drag):  N_water = t_w * N_salt.");
+            sb.AppendLine("  Salt transfer is capped at " + (EdModel.MaxDepletion * 100).ToString("0") +
+                          "% of the diluate salt (limiting-current / depletion).");
+            sb.AppendLine("  Power:  P = V * I;  SEC = P / Q_product (diluate-out volume).");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Refs: Strathmann, Ion-Exchange Membrane Separation Processes (2004);");
+            sb.AppendLine("        Strathmann, Desalination 264 (2010) 268-288;");
+            sb.AppendLine("        Baker, Membrane Technology & Applications 3e (2012) ch.10.");
+            return sb.ToString();
         }
     }
 

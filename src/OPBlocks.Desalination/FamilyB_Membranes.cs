@@ -284,11 +284,17 @@ namespace OPBlocks.Desalination
         }
     }
 
-    /// <summary>OP-NF — Nanofiltration.</summary>
+    /// <summary>
+    /// OP-NF — Nanofiltration. Selective, "leaky" membrane: multivalent ions are
+    /// rejected almost completely while monovalent ions pass substantially. Water
+    /// flux is solution-diffusion with a Spiegler-Kedem reflection coefficient on
+    /// the average osmotic pressure. Physics lives in <see cref="NfModel"/> (shared
+    /// with the validation tests); see docs/OP-NF_MODEL.md.
+    /// </summary>
     [ComVisible(true), Guid("74927f7d-a0a8-4b31-b6df-3a283d5582a5"), ProgId("OPBlocks.NF")]
     [CapeName("OP-NF"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("Nanofiltration: selective rejection of multivalent ions / small organics.")]
-    [CapeAbout("ONE PROCESS Blocks — OP-NF. (c) ONE PROCESS Simulation.")]
+    [CapeDescription("Nanofiltration: selective (Spiegler-Kedem) rejection of multivalent ions with a reflection coefficient; Rating/Design modes.")]
+    [CapeAbout("ONE PROCESS Blocks — OP-NF. (c) ONE PROCESS Simulation. See the block report's 'Model & References' section for equations and literature.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class Nanofiltration : UnitBase
     {
@@ -298,11 +304,42 @@ namespace OPBlocks.Desalination
             AddMaterialPort("Feed", "Feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Concentrate", "Concentrate (reject)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Permeate", "Permeate", CapePortDirection.CAPE_OUTLET);
-            AddRealParameter("Area", "Membrane area", 40, 0.1, 1e5, "m2");
-            AddRealParameter("WaterPermA", "Water permeability A", 6.0, 0.5, 30, "L/m2/h/bar");
-            AddRealParameter("SaltRejection", "Rejection (multivalent)", 90.0, 20, 99, "%");
-            AddRealParameter("AppliedPressure", "Applied feed pressure", 12, 2, 40, "bar");
-            AddRealParameter("VantHoffI", "van 't Hoff dissociation factor", 2.0, 1, 4, "-");
+
+            // NOTE: mode selector is a REAL parameter with an integer code, NOT a
+            // CAPE-OPEN option/integer parameter — Aspen's grid renders only
+            // RealParameter (IATCapeXRealParameterSpec). Any other type blanks the
+            // whole grid (diagnosed live on OP-RO 2026-07-14).
+            AddRealParameter("CalcMode",
+                "Calculation mode: 0 = Rating (area & pressure given -> performance); 1 = Design (target recovery given -> area & pressure)",
+                0, 0, 1, "-");
+
+            AddRealParameter("Area", "Total membrane area (Rating input; computed in Design)", 40, 0.1, 1e5, "m2");
+            AddRealParameter("WaterPermA", "Water permeability A (NF ~ 5-15)", 8.0, 0.5, 30, "L/m2/h/bar");
+            AddRealParameter("MultivalRejection", "Rejection of multivalent ions (Mg, Ca, SO4)", 97.0, 50, 99.9, "%");
+            AddRealParameter("MonovalRejection", "Rejection of monovalent ions (Na, Cl, K)", 50.0, 0, 95, "%");
+            AddRealParameter("AppliedPressure", "Applied feed pressure (Rating input; computed in Design)", 10, 1, 40, "bar");
+            AddRealParameter("ReflectionSigma", "Reflection coefficient sigma (Spiegler-Kedem; 1 = RO limit)", 0.95, 0.5, 1.0, "-");
+            AddRealParameter("VantHoffI", "van 't Hoff dissociation factor (2 for NaCl)", 2.0, 1, 4, "-");
+            AddRealParameter("PumpEff", "Feed pump efficiency", 80, 30, 95, "%");
+            AddRealParameter("MaxRecovery", "Maximum design water recovery (brackish NF ~ 80-90%)", 80, 5, 95, "%");
+            AddRealParameter("TargetRecovery", "Target water recovery (Design mode)", 75, 5, 95, "%");
+            AddRealParameter("DesignFlux", "Design average permeate flux (Design mode)", 40, 5, 120, "L/m2/h");
+
+            AddOutputParameter("Recovery", "Water recovery", "%");
+            AddOutputParameter("PermeateFlow", "Permeate volumetric flow", "m3/h");
+            AddOutputParameter("PermeateTDS", "Permeate TDS", "ppm");
+            AddOutputParameter("SaltRejObs", "Observed overall salt rejection", "%");
+            AddOutputParameter("PermeateFlux", "Permeate water flux", "L/m2/h");
+            AddOutputParameter("OsmoticPress", "Feed osmotic pressure", "bar");
+            AddOutputParameter("OsmoticPressAvg", "Average osmotic pressure (feed-conc)", "bar");
+            AddOutputParameter("EffectiveOsm", "Effective osmotic barrier (sigma x avg)", "bar");
+            AddOutputParameter("NDP", "Net driving pressure", "bar");
+            AddOutputParameter("ConcentrateTDS", "Concentrate TDS", "ppm");
+            AddOutputParameter("FeedTDS", "Feed TDS", "ppm");
+            AddOutputParameter("PumpPower", "Feed pump power", "kW");
+            AddOutputParameter("SEC", "Specific energy consumption", "kWh/m3");
+            AddOutputParameter("RequiredArea", "Required membrane area (Design mode)", "m2");
+            AddOutputParameter("RequiredPressure", "Required applied pressure (Design mode)", "bar");
         }
         public override string BlockCode => "OP-NF";
 
@@ -315,31 +352,192 @@ namespace OPBlocks.Desalination
             return true;
         }
 
+        /// <summary>Volumetric flow [m3/s]: package mass ÷ package density (unit-safe), else mole-derived kg/s over 1000 kg/m3 + warning.</summary>
+        private double VolumetricM3S(ThermoProxy stream, double moleDerivedKgS, string label, bool haveMw)
+        {
+            double mPkg, rhoPkg;
+            if (stream.TryGetTotalMassFlowKgS(out mPkg) && mPkg > 1e-30 &&
+                stream.TryGetMassDensityKgM3(out rhoPkg))
+                return mPkg / rhoPkg;
+            if (!haveMw || moleDerivedKgS <= 1e-30) return 0.0;
+            ReportWarning("The property package did not supply a " + label +
+                          " mass flow/density pair — 1000 kg/m3 assumed for its volumetric flow.");
+            return moleDerivedKgS / 1000.0;
+        }
+
+        private static double MoleDerivedKgS(double[] flowsMol, double[] mwGmol)
+        {
+            if (mwGmol == null) return 0.0;
+            double kg = 0;
+            for (int i = 0; i < flowsMol.Length; i++) kg += flowsMol[i] * mwGmol[i] / 1000.0;
+            return kg;
+        }
+
         protected override void Compute()
         {
-            var feed = RequireMaterial("Feed"); var perm = RequireMaterial("Permeate"); var conc = RequireMaterial("Concentrate");
-            double[] f = feed.GetOverallMoleFlows(); int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
+            var feed = RequireMaterial("Feed");
+            var perm = RequireMaterial("Permeate");
+            var conc = RequireMaterial("Concentrate");
+            string[] ids = feed.ComponentIds;
+            double[] f = feed.GetOverallMoleFlows();
+            int wi = ProcessOps.IndexOf(ids, "WATER", "H2O");
             double tK = feed.Temperature, p = feed.Pressure;
+            if (wi < 0)
+                ReportWarning("Feed contains no water component — nothing permeates; the whole feed leaves as concentrate.");
+
             var osmNotes = new System.Collections.Generic.List<string>();
-            double piBar = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes) * 0.5; // partial rejection
+            double piFeed = ProcessOps.OsmoticPressureBar(feed, f, wi, R("VantHoffI"), tK, osmNotes);
             foreach (string n in osmNotes) ReportWarning(n);
-            double ndp = Math.Max(0, R("AppliedPressure") - piBar);
-            if (ndp <= 0)
+
+            double[] mw;
+            bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
+            if (!haveMw)
+                ReportWarning("The property package did not supply molecular weights — TDS and salt-rejection results are unavailable this run.");
+
+            // per-component passage: multivalent ions rejected strongly, monovalent weakly
+            double multiPass = 1.0 - ProcessOps.Clamp(R("MultivalRejection"), 0, 100) / 100.0;
+            double monoPass = 1.0 - ProcessOps.Clamp(R("MonovalRejection"), 0, 100) / 100.0;
+            var saltPass = new double[f.Length];
+            bool anyMulti = false, anyMono = false;
+            for (int i = 0; i < f.Length; i++)
+            {
+                if (i == wi) { saltPass[i] = 0.0; continue; }
+                if (NfModel.IsMultivalent(ids != null && i < ids.Length ? ids[i] : null)) { saltPass[i] = multiPass; anyMulti = true; }
+                else { saltPass[i] = monoPass; anyMono = true; }
+            }
+
+            var spec = new NfModel.Spec
+            {
+                CalcMode = NfModel.ModeFromCode(R("CalcMode")),
+                AreaM2 = R("Area"),
+                WaterPermA = R("WaterPermA"),
+                ReflectionSigma = R("ReflectionSigma"),
+                AppliedBar = R("AppliedPressure"),
+                VantHoffI = R("VantHoffI"),
+                PumpEffPct = R("PumpEff"),
+                MaxRecoveryPct = R("MaxRecovery"),
+                TargetRecoveryPct = R("TargetRecovery"),
+                DesignFluxLMH = R("DesignFlux"),
+            };
+
+            NfModel.Split split = NfModel.Solve(spec, f, wi, saltPass, haveMw ? mw : null, tK, piFeed);
+            ProcessOps.SetSplitOutlets(perm, conc, split.PermMol, split.ConcMol, tK, 101325, tK, p);
+
+            double feedM3s = VolumetricM3S(feed, MoleDerivedKgS(f, mw), "feed", haveMw);
+            double permM3s = ProcessOps.Sum(split.PermMol) > 1e-30
+                ? VolumetricM3S(perm, MoleDerivedKgS(split.PermMol, mw), "permeate", haveMw) : 0.0;
+            NfModel.Energy e = NfModel.CalcEnergy(spec, split.AppliedBarUsed, feedM3s, permM3s);
+            double permM3h = permM3s * 3600.0;
+            double effOsm = ProcessOps.Clamp(R("ReflectionSigma"), 0, 1) * split.PiAvgBar;
+
+            EmitWarnings(spec, split, effOsm, anyMulti, anyMono);
+
+            Result("Water recovery", split.Recovery * 100, "%", "0.##");
+            Result("Permeate flow", permM3h, "m3/h", "0.####");
+            if (haveMw)
+            {
+                Result("Permeate TDS", split.TdsPermPpm, "ppm", "0.#");
+                Result("Salt rejection (observed)", split.SaltRejObsPct, "%", "0.##");
+            }
+            Result("Permeate flux", split.FluxLMH, "L/m2/h", "0.###");
+            Result("Feed osmotic pressure", split.PiFeedBar, "bar", "0.##");
+            Result("Average osmotic pressure", split.PiAvgBar, "bar", "0.##");
+            Result("Effective osmotic barrier", effOsm, "bar", "0.##");
+            Result("Net driving pressure", split.NdpBar, "bar", "0.##");
+            if (haveMw)
+            {
+                Result("Concentrate TDS", split.TdsConcPpm, "ppm", "0.#");
+                Result("Feed TDS", split.TdsFeedPpm, "ppm", "0.#");
+            }
+            Result("Pump power", e.PumpKW, "kW", "0.###");
+            Result("Specific energy (SEC)", e.SEC, "kWh/m3", "0.###");
+            if (spec.CalcMode == NfModel.Mode.Design)
+            {
+                Result("Required membrane area", split.RequiredAreaM2, "m2", "0.##");
+                Result("Required applied pressure", split.RequiredPressureBar, "bar", "0.##");
+            }
+
+            SetOutputParameter("Recovery", split.Recovery * 100);
+            SetOutputParameter("PermeateFlow", permM3h);
+            SetOutputParameter("PermeateTDS", split.TdsPermPpm);
+            SetOutputParameter("SaltRejObs", split.SaltRejObsPct);
+            SetOutputParameter("PermeateFlux", split.FluxLMH);
+            SetOutputParameter("OsmoticPress", split.PiFeedBar);
+            SetOutputParameter("OsmoticPressAvg", split.PiAvgBar);
+            SetOutputParameter("EffectiveOsm", effOsm);
+            SetOutputParameter("NDP", split.NdpBar);
+            SetOutputParameter("ConcentrateTDS", split.TdsConcPpm);
+            SetOutputParameter("FeedTDS", split.TdsFeedPpm);
+            SetOutputParameter("PumpPower", e.PumpKW);
+            SetOutputParameter("SEC", e.SEC);
+            SetOutputParameter("RequiredArea", split.RequiredAreaM2);
+            SetOutputParameter("RequiredPressure", split.RequiredPressureBar);
+        }
+
+        private void EmitWarnings(NfModel.Spec spec, NfModel.Split split, double effOsm, bool anyMulti, bool anyMono)
+        {
+            if (split.NdpBar <= 0)
                 ReportWarning(string.Format(
-                    "No permeation: applied pressure ({0:0.#} bar) is at or below the effective osmotic pressure ({1:0.#} bar).",
-                    R("AppliedPressure"), piBar));
-            double Jw = R("WaterPermA") * ndp;
-            double permWaterMol = Math.Min(Jw * R("Area") / 3600.0 / 0.0180153, f[wi] * 0.95);
-            double recovery = f[wi] > 0 ? permWaterMol / f[wi] : 0;
-            double saltPass = 1.0 - R("SaltRejection") / 100.0;
+                    "No net driving pressure: the applied pressure ({0:0.#} bar) does not exceed the effective osmotic " +
+                    "barrier sigma x avg-osmotic ({1:0.#} bar). Raise the pressure or reduce recovery.",
+                    split.AppliedBarUsed, effOsm));
 
-            var frac = new double[f.Length];
-            for (int i = 0; i < f.Length; i++) frac[i] = (i == wi) ? recovery : saltPass * recovery;
-            ProcessOps.SplitByRecovery(feed, perm, conc, frac, tK, 101325, tK, p);
+            if (spec.CalcMode == NfModel.Mode.Rating && split.RecoveryCapped)
+                ReportWarning(string.Format(
+                    "Water recovery limited to the MaxRecovery cap ({0:0.#}%); the membrane/pressure could drive {1:0.#}%. " +
+                    "The area may be oversized for this feed, or raise MaxRecovery if the design allows.",
+                    spec.MaxRecoveryPct, split.NaturalRecovery * 100));
 
-            Result("Water recovery", recovery * 100, "%", "0.##");
-            Result("Permeate flux", Jw, "L/m2/h", "0.###");
-            Result("Multivalent rejection", R("SaltRejection"), "%", "0.#");
+            if (spec.CalcMode == NfModel.Mode.Design && split.RecoveryCapped)
+                ReportWarning(string.Format(
+                    "Target recovery ({0:0.#}%) exceeds MaxRecovery ({1:0.#}%); designed at the cap instead.",
+                    spec.TargetRecoveryPct, spec.MaxRecoveryPct));
+
+            if (split.AppliedBarUsed > NfModel.MembraneMaxBar)
+                ReportWarning(string.Format(
+                    "Applied pressure ({0:0.#} bar) exceeds the typical NF element limit (~{1:0} bar). " +
+                    "Check the element rating or reduce flux/recovery.", split.AppliedBarUsed, NfModel.MembraneMaxBar));
+
+            if (split.Recovery > NfModel.LowConcRecovery)
+                ReportWarning(string.Format(
+                    "Recovery ({0:0.#}%) is very high — the concentrate flow is small, raising the scaling/fouling risk " +
+                    "(sparingly-soluble CaSO4/CaCO3). Confirm reject flow and antiscalant dosing.", split.Recovery * 100));
+
+            if (!anyMulti && anyMono)
+                ReportWarning("No multivalent ion (Mg/Ca/SO4...) recognised in the component list — every solute used the " +
+                              "monovalent rejection. NF's selectivity advantage appears only with multivalent species present.");
+            if (!anyMulti && !anyMono)
+                ReportWarning("Feed has no dissolved species besides water — the permeate equals the feed. Add the ions to the stream composition.");
+        }
+
+        /// <summary>Model &amp; References — travels with the simulation (ASCII, for Aspen's report viewer).</summary>
+        protected override string BuildReport()
+        {
+            string body = base.BuildReport();
+            var sb = new System.Text.StringBuilder(body);
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Water flux (solution-diffusion, Spiegler-Kedem):");
+            sb.AppendLine("    Jw = A * (dP - sigma * dPi_avg)   [L/m2/h]");
+            sb.AppendLine("    A = water permeability, dP = applied - permeate pressure,");
+            sb.AppendLine("    sigma = reflection coefficient (1 = RO limit; NF ~ 0.9-0.99),");
+            sb.AppendLine("    dPi_avg = 0.5*(pi_feed + pi_conc) (average osmotic pressure over the module).");
+            sb.AppendLine("  Osmotic pressure:  pi = i * c * R * T (van 't Hoff), or -(R*T/Vw)*ln(a_w)");
+            sb.AppendLine("    when the property package supplies the water activity a_w.");
+            sb.AppendLine("  Selective rejection: multivalent ions (Mg, Ca, SO4) use MultivalRejection;");
+            sb.AppendLine("    monovalent ions (Na, Cl, K) use MonovalRejection. Passage_i = 1 - Rejection_i;");
+            sb.AppendLine("    fraction of component i to permeate = Passage_i * recovery (water: recovery).");
+            sb.AppendLine("  Recovery r = permeate water / feed water; capped at MaxRecovery.");
+            sb.AppendLine("  Rating mode solves r vs pi_avg by a deterministic bisection.");
+            sb.AppendLine("  Design mode:  required area = Q_perm / DesignFlux,");
+            sb.AppendLine("    required pressure = sigma*pi_avg + DesignFlux / A.");
+            sb.AppendLine("  Pump power (whole feed from atmospheric):  W = Q_feed * dP / eff_pump; SEC = W / Q_perm.");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Refs: Kedem & Katchalsky, BBA 27 (1958) 229-246;");
+            sb.AppendLine("        Spiegler & Kedem, Desalination 1 (1966) 311-326;");
+            sb.AppendLine("        Mohammad et al., Desalination 356 (2015) 226-254;");
+            sb.AppendLine("        Baker, Membrane Technology & Applications 3e (2012) ch.5.");
+            return sb.ToString();
         }
     }
 
