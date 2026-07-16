@@ -121,9 +121,12 @@ namespace OPBlocks.Core
             {
                 Compute();
             }
-            catch (CapeUserException)
+            catch (CapeUserException ex)
             {
-                // Already an actionable ECapeUser error with a clear message.
+                // Already an actionable ECapeUser error with a clear message, but
+                // hosts truncate or hide it (Aspen: "SEE HISTORY FOR DETAIL" with no
+                // detail), so keep a copy in the local log for site diagnostics.
+                OpLog.Error(BlockCode, "Calculate (reported to host)", ex);
                 throw;
             }
             catch (Exception ex)
@@ -166,6 +169,9 @@ namespace OPBlocks.Core
             }
             catch (CapeUserException ex)
             {
+                // Actionable message goes back to the host, but hosts often hide it —
+                // keep a copy in the local log for site diagnostics.
+                OpLog.Error(BlockCode, "Validate (reported to host)", ex);
                 message = ex.Message;
                 return false;
             }
