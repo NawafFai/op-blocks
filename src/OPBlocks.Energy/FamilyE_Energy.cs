@@ -6,13 +6,13 @@ using OPBlocks.Core;
 namespace OPBlocks.Energy
 {
     // ===================================================================
-    //  Family E — Energy, Gas & Advanced Oxidation
+    //  Family E — Energy, Gas & Advanced Oxidation (factory grade)
     // ===================================================================
 
     /// <summary>OP-PEM — PEM water electrolyzer.</summary>
     [ComVisible(true), Guid("5cf6e601-c4b1-48cd-be66-54e7500f0626"), ProgId("OPBlocks.PEM")]
     [CapeName("OP-PEM"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("PEM electrolyzer: splits water into green H2 and O2 (polarization + Faraday).")]
+    [CapeDescription("PEM electrolyzer: splits water into green H2 and O2 (Faraday + voltage efficiency).")]
     [CapeAbout("ONE PROCESS Blocks — OP-PEM. (c) ONE PROCESS Simulation.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class PemElectrolyzer : UnitBase
@@ -23,11 +23,20 @@ namespace OPBlocks.Energy
             AddMaterialPort("WaterFeed", "Water feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Hydrogen", "H2 product", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Oxygen", "O2 product (+ excess water)", CapePortDirection.CAPE_OUTLET);
+
             AddRealParameter("CellArea", "Active cell area", 1.0, 0.001, 50, "m2");
-            AddRealParameter("CurrentDensity", "Current density", 2.0, 0.1, 6, "A/cm2");
-            AddIntParameter("CellCount", "Cells in stack", 100, 1, 2000);
-            AddRealParameter("CellVoltage", "Cell voltage", 1.9, 1.23, 2.6, "V");
+            AddRealParameter("CurrentDensity", "Current density (PEM 1-4)", 2.0, 0.1, 6, "A/cm2");
+            // golden rule: cell count as a REAL integer code
+            AddRealParameter("CellCount", "Cells in stack (integer code)", 100, 1, 2000, "-");
+            AddRealParameter("CellVoltage", "Cell voltage (PEM 1.7-2.1)", 1.9, 1.23, 2.6, "V");
             AddRealParameter("FaradaicEff", "Faradaic efficiency", 99, 80, 100, "%");
+
+            AddOutputParameter("H2Production", "H2 production", "kg/s");
+            AddOutputParameter("O2Production", "O2 production", "kg/s");
+            AddOutputParameter("StackPower", "Stack power", "kW");
+            AddOutputParameter("SEC", "Specific energy", "kWh/kg H2");
+            AddOutputParameter("EffHHV", "Stack efficiency (HHV)", "%");
+            AddOutputParameter("EffLHV", "Stack efficiency (LHV)", "%");
         }
         public override string BlockCode => "OP-PEM";
 
@@ -51,42 +60,70 @@ namespace OPBlocks.Energy
             int o2i = ProcessOps.IndexOf(ids, "O2", "OXYGEN");
             double[] f = feed.GetOverallMoleFlows(); double Tk = feed.Temperature, p = feed.Pressure;
 
-            double current = R("CurrentDensity") * R("CellArea") * 1e4;          // A (per cell)
-            double h2Faradaic = ProcessOps.FaradayMoles(current, 2, R("FaradaicEff") / 100.0) * I("CellCount");
-            double h2Mol = Math.Min(h2Faradaic, f[wi] * 0.99);
-            if (h2Mol < h2Faradaic * 0.999)
+            var spec = new ElectrolyzerModel.Spec
+            {
+                CellAreaM2 = R("CellArea"),
+                CurrentDensityAcm2 = R("CurrentDensity"),
+                CellCount = R("CellCount"),
+                CellVoltageV = R("CellVoltage"),
+                FaradaicEffPct = R("FaradaicEff"),
+            };
+            ElectrolyzerModel.Perf x = ElectrolyzerModel.Solve(spec, wi >= 0 ? f[wi] : 0.0);
+
+            if (x.WaterLimited)
                 ReportWarning(string.Format(
                     "Water-limited operation: the feed supplies water for only {0:0.####} mol/s H2 " +
                     "(the stack current could produce {1:0.####} mol/s). Increase the water feed.",
-                    h2Mol, h2Faradaic));
-            double o2Mol = h2Mol / 2.0;
-            double excessWater = f[wi] - h2Mol;
+                    x.H2MolS, x.H2FaradaicMolS));
 
-            var h2F = new double[f.Length]; h2F[h2i] = h2Mol;
-            // Everything the feed carried besides the consumed water leaves with
-            // the anolyte/O2 side — dropping it would leak mass for feeds that
-            // carry ions or additives (user-freedom rule).
+            var h2F = new double[f.Length]; h2F[h2i] = x.H2MolS;
+            // everything the feed carried besides the consumed water leaves with the
+            // anolyte/O2 side — dropping it would leak mass for feeds carrying ions
             var o2F = (double[])f.Clone();
-            o2F[wi] = Math.Max(0, excessWater);
-            o2F[o2i] += o2Mol;
+            if (wi >= 0) o2F[wi] = Math.Max(0, f[wi] - x.WaterConsMolS);
+            o2F[o2i] += x.O2MolS;
             h2.SetOutletTP(h2F, Tk, p);
             o2.SetOutletTP(o2F, Tk, p);
 
-            double stackPowerKW = R("CellVoltage") * current * I("CellCount") / 1000.0;
-            double h2KgS = h2Mol * 0.002016;
-            double lhvKW = h2KgS * 120000.0;                                     // 120 MJ/kg LHV
+            double h2KgS = x.H2MolS * ElectrolyzerModel.MwH2;
             Result("H2 production", h2KgS, "kg/s", "0.######");
-            Result("Cell voltage", R("CellVoltage"), "V", "0.###");
-            Result("Stack power", stackPowerKW, "kW", "0.##");
-            Result("Stack efficiency (LHV)", stackPowerKW > 0 ? lhvKW / stackPowerKW * 100 : 0, "%", "0.#");
-            Result("Specific energy", h2KgS > 0 ? stackPowerKW / (h2KgS * 3600.0) : 0, "kWh/kg H2", "0.##");
+            Result("O2 production", x.O2MolS * ElectrolyzerModel.MwO2, "kg/s", "0.######");
+            Result("Stack power", x.StackPowerKW, "kW", "0.##");
+            Result("Specific energy", x.SecKWhKg, "kWh/kg H2", "0.##");
+            Result("Stack efficiency (HHV)", x.EffHhvPct, "%", "0.#");
+            Result("Stack efficiency (LHV)", x.EffLhvPct, "%", "0.#");
+
+            SetOutputParameter("H2Production", h2KgS);
+            SetOutputParameter("O2Production", x.O2MolS * ElectrolyzerModel.MwO2);
+            SetOutputParameter("StackPower", x.StackPowerKW);
+            SetOutputParameter("SEC", x.SecKWhKg);
+            SetOutputParameter("EffHHV", x.EffHhvPct);
+            SetOutputParameter("EffLHV", x.EffLhvPct);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Faradaic production:  N_H2 = eta_F * I * N_cells / (2F);  I = j*A;");
+            sb.AppendLine("    N_O2 = N_H2/2; one water consumed per H2 (capped by the feed).");
+            sb.AppendLine("  Energy (exact closed forms):");
+            sb.AppendLine("    SEC = 26.59 * V / eta_F  [kWh/kg H2]");
+            sb.AppendLine("    eff_HHV = 1.481/V * eta_F;  eff_LHV = 1.253/V * eta_F.");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Validity: PEM j 1-4 A/cm2, V 1.7-2.1; 1.9 V/99% -> SEC ~ 51 kWh/kg.");
+            sb.AppendLine("  Refs: Carmo et al., Int. J. Hydrogen Energy 38 (2013) 4901-4934;");
+            sb.AppendLine("        Ursua, Gandia & Sanchis, Proc. IEEE 100 (2012) 410-426;");
+            sb.AppendLine("        Barbir, Solar Energy 78 (2005) 661-669.");
+            return sb.ToString();
         }
     }
 
     /// <summary>OP-AEL — Alkaline electrolyzer.</summary>
     [ComVisible(true), Guid("a85ddf54-c98c-465f-9c91-dd94f61e51c3"), ProgId("OPBlocks.AEL")]
     [CapeName("OP-AEL"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("Alkaline electrolyzer: KOH-based water electrolysis to H2 and O2.")]
+    [CapeDescription("Alkaline electrolyzer: KOH-based water electrolysis to H2 and O2 (Faraday).")]
     [CapeAbout("ONE PROCESS Blocks — OP-AEL. (c) ONE PROCESS Simulation.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class AlkalineElectrolyzer : UnitBase
@@ -96,13 +133,21 @@ namespace OPBlocks.Energy
             ComponentName = "OP-AEL"; ComponentDescription = "Alkaline Electrolyzer";
             AddMaterialPort("WaterFeed", "Water/KOH feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Hydrogen", "H2 product", CapePortDirection.CAPE_OUTLET);
-            AddMaterialPort("Oxygen", "O2 product (+ excess water)", CapePortDirection.CAPE_OUTLET);
+            AddMaterialPort("Oxygen", "O2 product (+ excess water/KOH)", CapePortDirection.CAPE_OUTLET);
+
             AddRealParameter("CellArea", "Active cell area", 2.0, 0.001, 50, "m2");
-            AddRealParameter("CurrentDensity", "Current density", 0.4, 0.05, 1.0, "A/cm2");
-            AddIntParameter("CellCount", "Cells in stack", 100, 1, 2000);
-            AddRealParameter("CellVoltage", "Cell voltage", 1.9, 1.23, 2.4, "V");
-            AddRealParameter("KOHconc", "KOH concentration", 30, 10, 40, "wt%");
+            AddRealParameter("CurrentDensity", "Current density (alkaline 0.2-0.6)", 0.4, 0.05, 1.0, "A/cm2");
+            // golden rule: cell count as a REAL integer code
+            AddRealParameter("CellCount", "Cells in stack (integer code)", 100, 1, 2000, "-");
+            AddRealParameter("CellVoltage", "Cell voltage (alkaline 1.8-2.2)", 1.9, 1.23, 2.4, "V");
+            AddRealParameter("KOHconc", "KOH concentration (advisory)", 30, 10, 40, "wt%");
             AddRealParameter("FaradaicEff", "Faradaic efficiency", 99, 80, 100, "%");
+
+            AddOutputParameter("H2Production", "H2 production", "kg/s");
+            AddOutputParameter("O2Production", "O2 production", "kg/s");
+            AddOutputParameter("StackPower", "Stack power", "kW");
+            AddOutputParameter("SEC", "Specific energy", "kWh/kg H2");
+            AddOutputParameter("EffHHV", "Stack efficiency (HHV)", "%");
         }
         public override string BlockCode => "OP-AEL";
 
@@ -126,35 +171,64 @@ namespace OPBlocks.Energy
             int o2i = ProcessOps.IndexOf(ids, "O2", "OXYGEN");
             double[] f = feed.GetOverallMoleFlows(); double Tk = feed.Temperature, p = feed.Pressure;
 
-            double current = R("CurrentDensity") * R("CellArea") * 1e4;
-            double h2Faradaic = ProcessOps.FaradayMoles(current, 2, R("FaradaicEff") / 100.0) * I("CellCount");
-            double h2Mol = Math.Min(h2Faradaic, f[wi] * 0.99);
-            if (h2Mol < h2Faradaic * 0.999)
+            var spec = new ElectrolyzerModel.Spec
+            {
+                CellAreaM2 = R("CellArea"),
+                CurrentDensityAcm2 = R("CurrentDensity"),
+                CellCount = R("CellCount"),
+                CellVoltageV = R("CellVoltage"),
+                FaradaicEffPct = R("FaradaicEff"),
+            };
+            ElectrolyzerModel.Perf x = ElectrolyzerModel.Solve(spec, wi >= 0 ? f[wi] : 0.0);
+
+            if (x.WaterLimited)
                 ReportWarning(string.Format(
                     "Water-limited operation: the feed supplies water for only {0:0.####} mol/s H2 " +
                     "(the stack current could produce {1:0.####} mol/s). Increase the water feed.",
-                    h2Mol, h2Faradaic));
-            double o2Mol = h2Mol / 2.0;
-            double excessWater = f[wi] - h2Mol;
+                    x.H2MolS, x.H2FaradaicMolS));
 
-            var h2F = new double[f.Length]; h2F[h2i] = h2Mol;
-            var o2F = (double[])f.Clone();  // KOH and excess water leave with the O2/anolyte side
-            o2F[wi] = Math.Max(0, excessWater); o2F[o2i] += o2Mol;
+            var h2F = new double[f.Length]; h2F[h2i] = x.H2MolS;
+            var o2F = (double[])f.Clone();   // KOH and excess water leave with the O2/anolyte side
+            if (wi >= 0) o2F[wi] = Math.Max(0, f[wi] - x.WaterConsMolS);
+            o2F[o2i] += x.O2MolS;
             h2.SetOutletTP(h2F, Tk, p);
             o2.SetOutletTP(o2F, Tk, p);
 
-            double stackPowerKW = R("CellVoltage") * current * I("CellCount") / 1000.0;
-            double h2KgS = h2Mol * 0.002016;
+            double h2KgS = x.H2MolS * ElectrolyzerModel.MwH2;
             Result("H2 production", h2KgS, "kg/s", "0.######");
-            Result("Stack power", stackPowerKW, "kW", "0.##");
-            Result("Specific energy", h2KgS > 0 ? stackPowerKW / (h2KgS * 3600.0) : 0, "kWh/kg H2", "0.##");
+            Result("O2 production", x.O2MolS * ElectrolyzerModel.MwO2, "kg/s", "0.######");
+            Result("Stack power", x.StackPowerKW, "kW", "0.##");
+            Result("Specific energy", x.SecKWhKg, "kWh/kg H2", "0.##");
+            Result("Stack efficiency (HHV)", x.EffHhvPct, "%", "0.#");
+
+            SetOutputParameter("H2Production", h2KgS);
+            SetOutputParameter("O2Production", x.O2MolS * ElectrolyzerModel.MwO2);
+            SetOutputParameter("StackPower", x.StackPowerKW);
+            SetOutputParameter("SEC", x.SecKWhKg);
+            SetOutputParameter("EffHHV", x.EffHhvPct);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Same Faradaic core as OP-PEM at alkaline operating ranges:");
+            sb.AppendLine("    N_H2 = eta_F * I * N_cells / (2F);  SEC = 26.59 * V / eta_F;");
+            sb.AppendLine("    eff_HHV = 1.481/V * eta_F. KOH concentration is advisory (electrolyte");
+            sb.AppendLine("    conductivity peaks near 30 wt%).");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Validity: j 0.2-0.6 A/cm2, V 1.8-2.2 -> SEC ~ 48-55 kWh/kg.");
+            sb.AppendLine("  Refs: Ursua, Gandia & Sanchis, Proc. IEEE 100 (2012) 410-426;");
+            sb.AppendLine("        Carmo et al., Int. J. Hydrogen Energy 38 (2013) 4901-4934.");
+            return sb.ToString();
         }
     }
 
     /// <summary>OP-FC — PEM Fuel Cell.</summary>
     [ComVisible(true), Guid("47412507-fbf7-4694-9311-3320f0c7d07d"), ProgId("OPBlocks.FuelCell")]
     [CapeName("OP-FC"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("PEM fuel cell: H2 + air to electric power and water.")]
+    [CapeDescription("PEM fuel cell: H2 + air to electric power and water (Faraday + voltage efficiency).")]
     [CapeAbout("ONE PROCESS Blocks — OP-FC. (c) ONE PROCESS Simulation.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class FuelCell : UnitBase
@@ -165,8 +239,14 @@ namespace OPBlocks.Energy
             AddMaterialPort("HydrogenIn", "H2 fuel in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("AirIn", "Air in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Exhaust", "Exhaust (depleted air + product water + unreacted H2)", CapePortDirection.CAPE_OUTLET);
+
             AddRealParameter("Utilization", "H2 utilization", 85, 20, 99, "%");
-            AddRealParameter("CellVoltage", "Cell voltage", 0.68, 0.4, 1.0, "V");
+            AddRealParameter("CellVoltage", "Cell voltage (PEM under load 0.6-0.8)", 0.68, 0.4, 1.0, "V");
+
+            AddOutputParameter("Power", "Power output", "kW");
+            AddOutputParameter("H2Consumed", "H2 consumed", "kg/s");
+            AddOutputParameter("EffLHV", "Electrical efficiency (LHV)", "%");
+            AddOutputParameter("WaterProduced", "Water produced", "kg/s");
         }
         public override string BlockCode => "OP-FC";
 
@@ -190,33 +270,51 @@ namespace OPBlocks.Energy
             int o2i = ProcessOps.IndexOf(ids, "O2", "OXYGEN");
             double[] hf = hIn.GetOverallMoleFlows(); double[] af = aIn.GetOverallMoleFlows();
 
-            double util = R("Utilization") / 100.0;
-            double h2Want = hf[h2i] * util;
-            double o2Cons = Math.Min(h2Want / 2.0, af[o2i]);
-            double h2Cons = o2Cons * 2.0;              // limited by available O2
-            if (h2Cons < h2Want * 0.999)
+            if (hf[h2i] <= 1e-15)
+                ReportWarning("The fuel feed carries no hydrogen flow — set the H2 amount in the HydrogenIn stream.");
+
+            var spec = new FcModel.Spec { UtilizationPct = R("Utilization"), CellVoltageV = R("CellVoltage") };
+            FcModel.Perf x = FcModel.Solve(spec, hf[h2i], af[o2i]);
+
+            if (x.AirLimited)
                 ReportWarning(string.Format(
                     "Air-limited operation: the air feed supplies oxygen for only {0:0.####} mol/s H2 " +
                     "(utilization asked for {1:0.####} mol/s). Increase the air flow.",
-                    h2Cons, h2Want));
-            if (hf[h2i] <= 1e-15)
-                ReportWarning("The fuel feed carries no hydrogen flow — set the H2 amount in the HydrogenIn stream.");
-            double waterProd = h2Cons;
+                    x.H2ConsMolS, x.H2WantMolS));
 
             var exF = new double[hf.Length];
             for (int i = 0; i < exF.Length; i++) exF[i] = af[i] + (i < hf.Length ? hf[i] : 0);
-            exF[h2i] -= h2Cons;
-            exF[o2i] -= o2Cons;
-            exF[wi] += waterProd;
+            exF[h2i] -= x.H2ConsMolS;
+            exF[o2i] -= x.O2ConsMolS;
+            exF[wi] += x.WaterProdMolS;
             ex.SetOutletTP(exF, aIn.Temperature, aIn.Pressure);
 
-            double current = h2Cons * 2.0 * ProcessOps.Faraday;   // A equivalent
-            double powerKW = R("CellVoltage") * current / 1000.0;
-            double lhvKW = h2Cons * 0.002016 * 120000.0;
-            Result("Power output", powerKW, "kW", "0.##");
-            Result("H2 consumed", h2Cons * 0.002016, "kg/s", "0.######");
-            Result("Electrical efficiency (LHV)", lhvKW > 0 ? powerKW / lhvKW * 100 : 0, "%", "0.#");
-            Result("Water produced", waterProd * 0.0180153, "kg/s", "0.#####");
+            double h2KgS = x.H2ConsMolS * FcModel.MwH2;
+            Result("Power output", x.PowerKW, "kW", "0.##");
+            Result("H2 consumed", h2KgS, "kg/s", "0.######");
+            Result("Electrical efficiency (LHV)", x.EffLhvPct, "%", "0.#");
+            Result("Water produced", x.WaterProdMolS * FcModel.MwH2O, "kg/s", "0.#####");
+
+            SetOutputParameter("Power", x.PowerKW);
+            SetOutputParameter("H2Consumed", h2KgS);
+            SetOutputParameter("EffLHV", x.EffLhvPct);
+            SetOutputParameter("WaterProduced", x.WaterProdMolS * FcModel.MwH2O);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Faradaic consumption: H2 = utilization * feed, capped by O2 (2 H2/O2);");
+            sb.AppendLine("    I = 2F * N_H2;   P = V_cell * I;   water produced = H2 consumed.");
+            sb.AppendLine("  Voltage efficiency (exact): eff_LHV = V_cell / 1.253");
+            sb.AppendLine("    (0.68 V -> 54.3%; the standard PEM operating point).");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Refs: O'Hayre, Cha, Colella & Prinz, Fuel Cell Fundamentals 3e (2016)");
+            sb.AppendLine("        ch.2;  Barbir, PEM Fuel Cells 2e (2013);");
+            sb.AppendLine("        Larminie & Dicks, Fuel Cell Systems Explained 2e (2003).");
+            return sb.ToString();
         }
     }
 
@@ -235,9 +333,15 @@ namespace OPBlocks.Energy
             AddMaterialPort("GasOut", "Treated gas out", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("LiquidIn", "Absorbent liquid in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("LiquidOut", "Loaded liquid out", CapePortDirection.CAPE_OUTLET);
-            AddRealParameter("RotorSpeed", "Rotor speed", 1000, 100, 3000, "rpm");
-            AddRealParameter("KlaCoeff", "k_La correlation constant", 0.02, 0.001, 0.2, "-");
-            AddRealParameter("SoluteMW", "Absorbed solute molar mass", 44, 2, 200, "g/mol");
+
+            AddRealParameter("RotorSpeed", "Rotor speed (HiGee 500-2500)", 1000, 100, 3000, "rpm");
+            AddRealParameter("KlaCoeff", "k_La calibration constant (NTU = k*sqrt(rpm))", 0.02, 0.001, 0.2, "-");
+            AddRealParameter("RotorPowerCoeff", "Rotor power coefficient (kW per rpm^2)", 5e-7, 1e-8, 1e-5, "kW/rpm2");
+
+            AddOutputParameter("Removal", "Solute removal", "%");
+            AddOutputParameter("NTU", "Transfer units", "-");
+            AddOutputParameter("Absorbed", "Solute absorbed", "mol/s");
+            AddOutputParameter("RotorPower", "Rotor power (indicative)", "kW");
         }
         public override string BlockCode => "OP-RPB";
 
@@ -255,35 +359,64 @@ namespace OPBlocks.Energy
             var lIn = RequireMaterial("LiquidIn"); var lOut = RequireMaterial("LiquidOut");
             string[] ids = gIn.ComponentIds;
             double[] gf = gIn.GetOverallMoleFlows(); double[] lf = lIn.GetOverallMoleFlows();
-            int co2 = ProcessOps.IndexOf(ids, "CO2", "CARBON DIOXIDE");
-            if (co2 < 0)   // fall back to most abundant non-water gas component
+            int solute = ProcessOps.IndexOf(ids, "CO2", "CARBON DIOXIDE");
+            if (solute < 0)   // fall back to most abundant non-water gas component
             {
                 int wi = ProcessOps.IndexOf(ids, "WATER", "H2O"); double best = -1;
-                for (int i = 0; i < gf.Length; i++) if (i != wi && gf[i] > best) { best = gf[i]; co2 = i; }
-                ReportWarning("No CO2 in component list — absorbing the most abundant gas solute instead.");
+                for (int i = 0; i < gf.Length; i++) if (i != wi && gf[i] > best) { best = gf[i]; solute = i; }
+                ReportWarning("No CO2 in the component list — absorbing the most abundant non-water gas species instead.");
             }
+            if (solute < 0 || gf[solute] <= 1e-15)
+                ReportWarning("The gas feed carries no absorbable solute flow — nothing to absorb.");
 
-            double ntu = R("KlaCoeff") * Math.Sqrt(R("RotorSpeed"));
-            double removalFrac = ProcessOps.Clamp01(1.0 - Math.Exp(-ntu));
-            double absorbed = gf[co2] * removalFrac;
+            var spec = new RpbModel.Spec
+            {
+                RotorRpm = R("RotorSpeed"),
+                KlaCal = R("KlaCoeff"),
+                RotorPowerCoeff = R("RotorPowerCoeff"),
+            };
+            RpbModel.Perf x = RpbModel.Solve(spec);
+            double absorbed = solute >= 0 ? gf[solute] * x.RemovalFrac : 0.0;
 
-            var gof = (double[])gf.Clone(); gof[co2] -= absorbed;
-            var lof = (double[])lf.Clone(); if (co2 < lof.Length) lof[co2] += absorbed;
+            var gof = (double[])gf.Clone(); if (solute >= 0) gof[solute] -= absorbed;
+            var lof = (double[])lf.Clone(); if (solute >= 0 && solute < lof.Length) lof[solute] += absorbed;
             gOut.SetOutletTP(gof, gIn.Temperature, gIn.Pressure);
             lOut.SetOutletTP(lof, lIn.Temperature, lIn.Pressure);
 
-            double rotorKW = 1e-6 * Math.Pow(R("RotorSpeed"), 2) * 0.5; // indicative rotor power
-            Result("Removal", removalFrac * 100, "%", "0.##");
-            Result("NTU", ntu, "-", "0.###");
-            Result("Solute absorbed", absorbed * R("SoluteMW") / 1000.0, "kg/s", "0.#####");
-            Result("Rotor power (indicative)", rotorKW, "kW", "0.###");
+            Result("Solute removal", x.RemovalFrac * 100, "%", "0.##");
+            Result("NTU", x.Ntu, "-", "0.###");
+            Result("Solute absorbed", absorbed, "mol/s", "0.######");
+            Result("Rotor power (indicative)", x.RotorKW, "kW", "0.###");
+
+            SetOutputParameter("Removal", x.RemovalFrac * 100);
+            SetOutputParameter("NTU", x.Ntu);
+            SetOutputParameter("Absorbed", absorbed);
+            SetOutputParameter("RotorPower", x.RotorKW);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  HiGee intensification: the centrifugal field (hundreds of g) shears");
+            sb.AppendLine("  the liquid into films/droplets, raising k_La 10-100x over a column.");
+            sb.AppendLine("    NTU = k_cal * sqrt(RPM);   removal = 1 - exp(-NTU)");
+            sb.AppendLine("  (k_cal lumps packing geometry, flows and diffusivity; Chen's k_La");
+            sb.AppendLine("   correlations reduce this way at fixed flows).");
+            sb.AppendLine("  Rotor power indicative, proportional to rpm^2.");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Validity: 500-2500 rpm CO2/VOC absorption duties.");
+            sb.AppendLine("  Refs: Ramshaw & Mallinson, US Patent 4,283,255 (1981);");
+            sb.AppendLine("        Chen, Lin & Liu, Ind. Eng. Chem. Res. 44 (2005) 7868-7875.");
+            return sb.ToString();
         }
     }
 
     /// <summary>OP-UVAOP — UV / advanced oxidation reactor.</summary>
     [ComVisible(true), Guid("71ab6cc5-95d4-4c8d-b45f-8623b9e47538"), ProgId("OPBlocks.UVAOP")]
     [CapeName("OP-UVAOP"), CapeVersion("1.0"), CapeVendorURL("https://oneprocess.sim")]
-    [CapeDescription("UV / advanced oxidation reactor: UV(+H2O2) destruction of trace contaminants.")]
+    [CapeDescription("UV / advanced oxidation reactor: UV(+H2O2) destruction of trace contaminants (Bolton EEO).")]
     [CapeAbout("ONE PROCESS Blocks — OP-UVAOP. (c) ONE PROCESS Simulation.")]
     [CapeConsumesThermo(true), CapeSupportsThermodynamics11(true)]
     public class UvAopReactor : UnitBase
@@ -293,11 +426,17 @@ namespace OPBlocks.Energy
             ComponentName = "OP-UVAOP"; ComponentDescription = "UV / Advanced Oxidation Reactor";
             AddMaterialPort("LiquidIn", "Liquid in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("LiquidOut", "Treated liquid out", CapePortDirection.CAPE_OUTLET);
-            AddRealParameter("UVDose", "UV dose", 800, 10, 5000, "mJ/cm2");
-            AddRealParameter("RateConstant", "Dose-response k", 0.003, 1e-5, 0.1, "cm2/mJ");
-            AddRealParameter("UVT", "UV transmittance (254 nm)", 90, 30, 99, "%");
-            AddRealParameter("H2O2Dose", "H2O2 dose", 5, 0, 50, "mg/L");
+
+            AddRealParameter("UVDose", "UV dose (AOP duties 500-2000)", 800, 10, 5000, "mJ/cm2");
+            AddRealParameter("RateConstant", "Dose-response rate k", 0.003, 1e-5, 0.1, "cm2/mJ");
+            AddRealParameter("UVT", "UV transmittance at 254 nm", 90, 30, 99, "%");
+            AddRealParameter("H2O2Dose", "H2O2 dose (radical enhancement)", 5, 0, 50, "mg/L");
             AddRealParameter("LampPower", "Total lamp power", 10, 0.1, 1000, "kW");
+
+            AddOutputParameter("Destruction", "Contaminant destruction", "%");
+            AddOutputParameter("LogRemoval", "Log removal", "log");
+            AddOutputParameter("EEO", "Electrical energy per order (Bolton)", "kWh/m3/order");
+            AddOutputParameter("EffDose", "Effective UV dose", "mJ/cm2");
         }
         public override string BlockCode => "OP-UVAOP";
 
@@ -315,24 +454,69 @@ namespace OPBlocks.Energy
             var lIn = RequireMaterial("LiquidIn"); var lOut = RequireMaterial("LiquidOut");
             int wi = ProcessOps.IndexOf(lIn.ComponentIds, "WATER", "H2O");
             double[] f = lIn.GetOverallMoleFlows();
-            // Effective dose scaled by UVT and boosted by H2O2 (radical) dosing.
-            double h2o2Boost = 1.0 + R("H2O2Dose") / 20.0;
-            double effDose = R("UVDose") * (R("UVT") / 100.0) * h2o2Boost;
-            double destroyFrac = ProcessOps.Clamp01(1.0 - Math.Exp(-R("RateConstant") * effDose));
+
+            double mF, rhoF, feedM3s;
+            if (lIn.TryGetTotalMassFlowKgS(out mF) && mF > 1e-30 && lIn.TryGetMassDensityKgM3(out rhoF))
+                feedM3s = mF / rhoF;
+            else
+                feedM3s = (wi >= 0 ? f[wi] : 0) * 0.0180153 / 1000.0;
+
+            double soluteMolS = ProcessOps.Sum(f) - (wi >= 0 ? f[wi] : 0);
+            if (soluteMolS <= 1e-15)
+                ReportWarning("The feed carries no contaminant besides water — nothing to destroy. " +
+                              "Set the micropollutant flow in the feed composition.");
+
+            var spec = new UvAopModel.Spec
+            {
+                UvDoseMJcm2 = R("UVDose"),
+                RateKcm2mJ = R("RateConstant"),
+                UvtPct = R("UVT"),
+                H2o2MgL = R("H2O2Dose"),
+                LampPowerKW = R("LampPower"),
+            };
+            UvAopModel.Perf x = UvAopModel.Solve(spec, feedM3s * 3600.0);
+
+            if (x.EeoKWhM3Order > 2.5 && x.LogRemoval > 0)
+                ReportWarning(string.Format(
+                    "EEO ({0:0.##} kWh/m3/order) is above the published UV/H2O2 band (~0.1-2.5) — " +
+                    "the lamp is oversized for this flow, or the UVT is too low.", x.EeoKWhM3Order));
+            if (R("UVT") < 60)
+                ReportWarning("UV transmittance below 60% — pre-treatment (filtration) is normally required " +
+                              "before UV AOP at this water quality.");
 
             var of = (double[])f.Clone(); double destroyed = 0;
             for (int i = 0; i < f.Length; i++)
-                if (i != wi) { double m = f[i] * destroyFrac; of[i] -= m; destroyed += m; }
+                if (i != wi) { double m = f[i] * x.DestroyFrac; of[i] -= m; destroyed += m; }
             lOut.SetOutletTP(of, lIn.Temperature, lIn.Pressure);
-
-            double logRemoval = destroyFrac < 1 ? -Math.Log10(Math.Max(1e-6, 1 - destroyFrac)) : 6;
-            double flowM3h = f[wi] * 0.0180153 / 1000.0 * 3600.0;
-            double eeo = (flowM3h > 0 && logRemoval > 0) ? R("LampPower") / (flowM3h * logRemoval) : 0;
-            Result("Contaminant destruction", destroyFrac * 100, "%", "0.##");
-            Result("Log removal", logRemoval, "log", "0.##");
-            Result("EEO", eeo, "kWh/m3/order", "0.###");
-            Result("Lamp power", R("LampPower"), "kW", "0.##");
             ReportWarning("Destroyed contaminant is oxidised (mineralised); its stream flow is removed at the outlet.");
+
+            Result("Contaminant destruction", x.DestroyFrac * 100, "%", "0.##");
+            Result("Log removal", x.LogRemoval, "log", "0.##");
+            Result("EEO", x.EeoKWhM3Order, "kWh/m3/order", "0.###");
+            Result("Effective UV dose", x.EffDoseMJcm2, "mJ/cm2", "0.#");
+
+            SetOutputParameter("Destruction", x.DestroyFrac * 100);
+            SetOutputParameter("LogRemoval", x.LogRemoval);
+            SetOutputParameter("EEO", x.EeoKWhM3Order);
+            SetOutputParameter("EffDose", x.EffDoseMJcm2);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  First-order UV dose-response:  ln(C/C0) = -k * D_eff;");
+            sb.AppendLine("    D_eff = D * (UVT/100) * (1 + H2O2/20)  (empirical OH-radical boost).");
+            sb.AppendLine("  Log removal = k * D_eff / ln(10).");
+            sb.AppendLine("  Bolton figure of merit (IUPAC, exact by definition):");
+            sb.AppendLine("    EEO = P_lamp / (Q * log_removal)   [kWh/m3/order]");
+            sb.AppendLine("  Published UV/H2O2 EEO for trace organics: ~0.1-2.5 kWh/m3/order.");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Refs: Bolton, Bircher, Tumas & Tolman, Pure Appl. Chem. 73 (2001)");
+            sb.AppendLine("        627-637;  Oppenlaender, Photochemical Purification of Water");
+            sb.AppendLine("        and Air (2003).");
+            return sb.ToString();
         }
     }
 }
