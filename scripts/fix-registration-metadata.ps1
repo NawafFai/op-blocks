@@ -5,7 +5,7 @@
 .DESCRIPTION
   The CO-LaN CapeOpen.dll registration writes the palette-critical keys correctly
   (Name, Description, the CapeUnitOperation CATID, InprocServer32) but shifts the
-  informational ones — it puts the VendorURL into the CapeVersion value and leaves
+  informational ones - it puts the VendorURL into the CapeVersion value and leaves
   VendorURL empty. This step reads each block's actual [CapeVersion]/[CapeVendorURL]
   /[CapeHelpURL] attributes and writes them to the correct CapeDescription values in
   BOTH the x64 and WOW6432 (x86) hives. Must run elevated (writes HKLM\...\Classes).

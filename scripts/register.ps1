@@ -9,7 +9,7 @@
   [ComRegisterFunction] writes the CapeUnitOperation CATID + CapeDescription keys.
 
   Registering writes to HKLM\SOFTWARE\Classes and therefore needs Administrator
-  rights; the script self-elevates via UAC (spec §1). This mirrors what the
+  rights; the script self-elevates via UAC (spec section 1). This mirrors what the
   OP-Blocks Manager does behind its elevation prompt.
 
 .PARAMETER Configuration
@@ -31,7 +31,7 @@ function Test-Admin {
 
 # Self-elevate if needed.
 if (-not (Test-Admin)) {
-    Write-Host "Elevation required for COM registration — launching UAC prompt..." -ForegroundColor Yellow
+    Write-Host "Elevation required for COM registration - launching UAC prompt..." -ForegroundColor Yellow
     $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PSCommandPath`"",
                  "-Configuration", $Configuration)
     if ($Unregister) { $argList += "-Unregister" }
