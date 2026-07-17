@@ -21,8 +21,13 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#ExeName}
+SetupIconFile=..\src\OPBlocksManager\OPBlocksManager.ico
+AppVerName={#AppName} {#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoCompany={#Publisher}
+VersionInfoDescription={#AppName} Setup
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
