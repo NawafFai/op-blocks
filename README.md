@@ -127,6 +127,12 @@ Each block is built against the same gates (full engineering journal:
 | `scripts/` | build / register / package / installer scripts |
 | `installer/` | Inno Setup script, Aspen palette (`ONE PROCESS.apm`), templates |
 
+## Contact
+
+Questions, bug reports, or collaboration: **alahmadnf@outlook.com**
+(Engineer Nawaf — ONE PROCESS Simulation). Please open a GitHub issue for bugs
+so others can benefit.
+
 ## License
 
 [MIT](LICENSE) © ONE PROCESS Simulation. "ONE PROCESS" and the OP-Blocks marks

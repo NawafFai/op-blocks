@@ -61,7 +61,8 @@ citations in the engine header.
 
 ## Reporting issues
 
-Please include: the block, the host (Aspen Plus V14), the property package, the
-feed composition, and what you expected vs. observed. Registration problems are
-almost always a missing "Run as Administrator" or a downloaded ZIP that was not
-unblocked — see the README troubleshooting section first.
+Please open a GitHub issue and include: the block, the host (Aspen Plus V14),
+the property package, the feed composition, and what you expected vs. observed.
+Registration problems are almost always a missing "Run as Administrator" or a
+downloaded ZIP that was not unblocked — see the README troubleshooting section
+first. For anything else: **alahmadnf@outlook.com**.
