@@ -24,6 +24,9 @@ Copy-Item (Join-Path $root "installer\templates") (Join-Path $stage "templates")
 New-Item -ItemType Directory -Force -Path (Join-Path $stage "scripts") | Out-Null
 Copy-Item (Join-Path $root "scripts\register-all-blocks.ps1") (Join-Path $stage "scripts") -Force
 Copy-Item (Join-Path $root "installer\README-EndUser.txt") (Join-Path $stage "README.txt") -Force
+# one-click portable install/uninstall wrappers (bypass ExecutionPolicy, self-elevate)
+Copy-Item (Join-Path $root "installer\portable\INSTALL.bat")   (Join-Path $stage "INSTALL.bat")   -Force
+Copy-Item (Join-Path $root "installer\portable\UNINSTALL.bat") (Join-Path $stage "UNINSTALL.bat") -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $stage "docs") | Out-Null
 Copy-Item (Join-Path $root "docs\block-catalog.html") (Join-Path $stage "docs") -Force -ErrorAction SilentlyContinue
 

@@ -40,13 +40,14 @@ Name: "{group}\Uninstall ONE PROCESS Blocks"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\ONE PROCESS Blocks Manager"; Filename: "{app}\{#ExeName}"; Tasks: desktopicon
 
 [Run]
-; Register all blocks (x64 + x86) after files are copied.
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-all-blocks.ps1"""; \
+; Register all blocks (x64 + x86) after files are copied. OPBLOCKS_NOWAIT stops
+; the script's "Press Enter" prompt from hanging the hidden installer window.
+Filename: "cmd.exe"; Parameters: "/c set OPBLOCKS_NOWAIT=1 && powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-all-blocks.ps1"""; \
     StatusMsg: "Registering ONE PROCESS blocks (x64 + x86)..."; Flags: runhidden waituntilterminated
 ; Offer to launch the Manager.
 Filename: "{app}\{#ExeName}"; Description: "Launch ONE PROCESS Blocks Manager"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Unregister the blocks on uninstall.
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-all-blocks.ps1"" -Unregister"; \
+Filename: "cmd.exe"; Parameters: "/c set OPBLOCKS_NOWAIT=1 && powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\register-all-blocks.ps1"" -Unregister"; \
     Flags: runhidden waituntilterminated; RunOnceId: "UnregOPBlocks"
