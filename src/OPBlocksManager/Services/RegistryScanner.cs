@@ -73,10 +73,18 @@ namespace OPBlocksManager.Services
 
         private static string DescribeAspenFolder(string folder)
         {
-            // "Aspen Plus V14.0" → "V14 (engine 40.0)"
+            // "Aspen Plus V14.0" → "V14 (engine 40.0)". Any Aspen Plus version is
+            // detected (the caller globs "Aspen Plus V*"); the blocks register as
+            // standard CAPE-OPEN units and are version-independent, so this only
+            // gives each detected version a friendly label.
             int idx = folder.IndexOf('V');
             string vpart = idx >= 0 ? folder.Substring(idx) : folder;
-            return vpart.StartsWith("V14") ? "V14 (engine 40.0)" : vpart;
+            if (vpart.StartsWith("V14")) return "V14 (engine 40.0)";
+            if (vpart.StartsWith("V12.1")) return "V12.1 (engine 39.0)";
+            if (vpart.StartsWith("V12")) return "V12 (engine 38.0)";
+            if (vpart.StartsWith("V11")) return "V11 (engine 37.0)";
+            if (vpart.StartsWith("V10")) return "V10 (engine 36.0)";
+            return vpart; // V13 or any future/other version: show the folder version as-is
         }
 
         private static string MapEngine(string engine)

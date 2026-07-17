@@ -78,10 +78,14 @@ engineering warnings, and a "Model & References" section in the block report.
    or **Object Palette → CAPE-OPEN Unit Operation** (DWSIM) — all 25 OP blocks
    are there. Drag, drop, connect, run.
 
-Requirements: Windows 10/11 x64, .NET Framework 4.8 (in-box on Windows), and
-either **Aspen Plus V14** or **DWSIM**. Both are supported CAPE-OPEN hosts: the
-blocks resolve the host thermo automatically (Thermo 1.1 on Aspen, Thermo 1.0
-on DWSIM), so the same block runs on both.
+Requirements: Windows 10/11 x64, .NET Framework 4.8 (in-box on Windows), and any
+CAPE-OPEN host. The blocks register as **standard CAPE-OPEN unit operations**,
+so they are version-independent: the Manager auto-detects whatever you have
+installed, and the blocks appear in **Aspen Plus V14** and **DWSIM** (the hosts
+verified in this release) as well as older Aspen Plus versions (V11 / V12 /
+V12.1) — the same registration serves them all. Each block resolves the host
+thermodynamics automatically (Thermo 1.1 on Aspen, Thermo 1.0 on DWSIM), so the
+same block runs everywhere.
 
 The **OP-Blocks Manager** detects your simulators and installs the whole library
 in one click:
