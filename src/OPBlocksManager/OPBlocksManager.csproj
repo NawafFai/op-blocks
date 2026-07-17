@@ -11,11 +11,27 @@
     <!-- AnyCPU: the Manager self-relaunches elevated and drives both the x64 and
          x86 RegAsm, so it must not be pinned to one bitness. -->
     <PlatformTarget>AnyCPU</PlatformTarget>
+
+    <!-- Professional app identity: exe icon + version resource metadata. -->
+    <ApplicationIcon>OPBlocksManager.ico</ApplicationIcon>
+    <Product>ONE PROCESS Blocks</Product>
+    <AssemblyTitle>ONE PROCESS Blocks Manager</AssemblyTitle>
+    <Company>ONE PROCESS Simulation</Company>
+    <Description>Installs and manages the ONE PROCESS CAPE-OPEN unit operations for Aspen Plus V14.</Description>
+    <Copyright>Copyright (c) 2026 ONE PROCESS Simulation. MIT License.</Copyright>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="SharpVectors.Reloaded" Version="1.8.4" />
+  </ItemGroup>
+
+  <!-- App icon as a WPF resource so the window title bar / taskbar use it too. -->
+  <ItemGroup>
+    <Resource Include="OPBlocksManager.ico" />
   </ItemGroup>
 
   <!-- Ship the equipment icons next to the Manager so it can render them. -->

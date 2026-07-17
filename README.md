@@ -1,5 +1,12 @@
 # ONE PROCESS Blocks (OP-Blocks)
 
+![version](https://img.shields.io/badge/version-1.0.0-29ABE2)
+![license](https://img.shields.io/badge/license-MIT-green)
+![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
+![host](https://img.shields.io/badge/host-Aspen%20Plus%20V14-1B3A5C)
+![tests](https://img.shields.io/badge/tests-369%20passing-brightgreen)
+![blocks](https://img.shields.io/badge/blocks-25-29ABE2)
+
 **25 open-source CAPE-OPEN unit operations for water, desalination, lithium and
 green-energy flowsheets — built for Aspen Plus V14.**
 

@@ -5,6 +5,7 @@
         xmlns:svgc="http://sharpvectors.codeplex.com/svgc/"
         Title="ONE PROCESS Blocks — Manager" Height="700" Width="980"
         MinHeight="580" MinWidth="840"
+        Icon="OPBlocksManager.ico"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI" Background="White"
         FlowDirection="{Binding L.FlowDir}">
