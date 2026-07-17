@@ -222,10 +222,21 @@ namespace OPBlocks.Electro
             AddMaterialPort("DiluteOut", "Product (ultrapure)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("ConcentrateIn", "Concentrate in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("ConcentrateOut", "Concentrate out", CapePortDirection.CAPE_OUTLET);
-            AddIntParameter("CellPairs", "Number of cell pairs", 50, 1, 500);
+
+            // golden rule: counts/valence as REAL integer codes
+            AddRealParameter("CellPairs", "Number of cell pairs (integer code)", 50, 1, 500, "-");
             AddRealParameter("AppliedVoltage", "Stack voltage", 100, 1, 600, "V");
             AddRealParameter("StackResistance", "Stack resistance", 40, 0.1, 2000, "ohm");
-            AddRealParameter("RemovalEfficiency", "Ion removal (resin-enhanced)", 99, 80, 99.99, "%");
+            AddRealParameter("TargetRemoval", "Target ion removal (resin-enhanced polishing)", 99, 80, 99.99, "%");
+            AddRealParameter("CurrentEff", "Current efficiency for ion transport", 90, 30, 100, "%");
+            AddRealParameter("IonValence", "Representative ion valence z (integer code)", 1, 1, 3, "-");
+
+            AddOutputParameter("Removal", "Achieved ion removal", "%");
+            AddOutputParameter("StackCurrent", "Stack current", "A");
+            AddOutputParameter("IonsRemoved", "Ions transferred to concentrate", "mol/s");
+            AddOutputParameter("WaterSplit", "Current fraction splitting water (regeneration)", "-");
+            AddOutputParameter("Power", "Stack power", "kW");
+            AddOutputParameter("SEC", "Specific energy consumption", "kWh/m3");
         }
         public override string BlockCode => "OP-EDI";
 
@@ -244,23 +255,74 @@ namespace OPBlocks.Electro
             var cIn = RequireMaterial("ConcentrateIn"); var cOut = RequireMaterial("ConcentrateOut");
             int wi = ProcessOps.IndexOf(dIn.ComponentIds, "WATER", "H2O");
             double[] df = dIn.GetOverallMoleFlows(); double[] cf = cIn.GetOverallMoleFlows();
-            double frac = R("RemovalEfficiency") / 100.0;
 
-            if (ProcessOps.Sum(df) - df[wi] <= 1e-12)
+            if (ProcessOps.Sum(df) - (wi >= 0 ? df[wi] : 0) <= 1e-12)
                 ReportWarning("The dilute feed contains no ions besides water — the product equals the feed. " +
                               "Add the dissolved species to the stream composition.");
 
-            var dof = (double[])df.Clone(); var cof = (double[])cf.Clone();
-            for (int i = 0; i < df.Length; i++)
-                if (i != wi) { double m = df[i] * frac; dof[i] -= m; cof[i] += m; }
-            dOut.SetOutletTP(dof, dIn.Temperature, dIn.Pressure);
-            cOut.SetOutletTP(cof, cIn.Temperature, cIn.Pressure);
+            double mDil, rhoDil, dilM3s;
+            if (dIn.TryGetTotalMassFlowKgS(out mDil) && mDil > 1e-30 && dIn.TryGetMassDensityKgM3(out rhoDil))
+                dilM3s = mDil / rhoDil;
+            else
+            {
+                dilM3s = (wi >= 0 ? df[wi] : 0) * 0.0180153 / 1000.0;
+                ReportWarning("The property package did not supply a dilute mass flow/density pair — " +
+                              "1000 kg/m3 assumed for the SEC volume basis.");
+            }
 
-            double current = R("AppliedVoltage") / R("StackResistance");
-            double dilM3h = df[wi] * 0.0180153 / 1000.0 * 3600.0;
-            Result("Ion removal", R("RemovalEfficiency"), "%", "0.###");
-            Result("Stack current", current, "A", "0.##");
-            Result("Specific energy consumption", dilM3h > 0 ? R("AppliedVoltage") * current / 1000.0 / dilM3h : 0, "kWh/m3", "0.###");
+            var spec = new EdiModel.Spec
+            {
+                CellPairs = R("CellPairs"),
+                VoltageV = R("AppliedVoltage"),
+                ResistanceOhm = R("StackResistance"),
+                TargetRemovalPct = R("TargetRemoval"),
+                CurrentEffPct = R("CurrentEff"),
+                IonValence = R("IonValence"),
+            };
+            EdiModel.Perf p = EdiModel.Solve(spec, df, cf, wi, dilM3s);
+
+            if (p.CurrentLimited)
+                ReportWarning(string.Format(
+                    "Current-limited operation: the stack current can transfer only {0:0.####} mol/s of ions " +
+                    "(the target removal needs more). Raise the voltage or add cell pairs.", p.FaradaicCapMolS));
+            if (p.WaterSplitFrac > 0.9)
+                ReportWarning("More than 90% of the current is splitting water — the dilute feed is far cleaner than " +
+                              "the stack is sized for. EDI is a polishing step; check the upstream RO.");
+
+            dOut.SetOutletTP(p.DiluteOutMol, dIn.Temperature, dIn.Pressure);
+            cOut.SetOutletTP(p.ConcOutMol, cIn.Temperature, cIn.Pressure);
+
+            Result("Ion removal (achieved)", p.RemovalPct, "%", "0.###");
+            Result("Stack current", p.CurrentA, "A", "0.##");
+            Result("Ions removed", p.RemovedMolS, "mol/s", "0.######");
+            Result("Water-splitting fraction", p.WaterSplitFrac, "-", "0.###");
+            Result("Stack power", p.PowerKW, "kW", "0.###");
+            Result("Specific energy consumption", p.SecKWhM3, "kWh/m3", "0.###");
+
+            SetOutputParameter("Removal", p.RemovalPct);
+            SetOutputParameter("StackCurrent", p.CurrentA);
+            SetOutputParameter("IonsRemoved", p.RemovedMolS);
+            SetOutputParameter("WaterSplit", p.WaterSplitFrac);
+            SetOutputParameter("Power", p.PowerKW);
+            SetOutputParameter("SEC", p.SecKWhM3);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  EDI = electrodialysis + mixed-bed resin. Ion transport is Faradaic:");
+            sb.AppendLine("    N_max = eta_i * I * N_cellpairs / (z * F);   I = V / R_stack");
+            sb.AppendLine("  Achieved removal = min(target, Faradaic capability).");
+            sb.AppendLine("  Excess current splits water and regenerates the resin continuously");
+            sb.AppendLine("    (Ganzi mechanism) — reported as the water-splitting fraction.");
+            sb.AppendLine("  SEC = V*I / Q_dilute.  Thermo from the selected Property Package.");
+            sb.AppendLine("  Validity: polishing duty after RO (feed < ~50 ppm), removal 90-99.99%.");
+            sb.AppendLine("  Refs: Ganzi et al., Ultrapure Water 4 (1987) 43-50;");
+            sb.AppendLine("        Wood et al., Desalination 250 (2010) 973-976;");
+            sb.AppendLine("        Strathmann, Ion-Exchange Membrane Separation Processes (2004) ch.6.");
+            return sb.ToString();
         }
     }
 
@@ -278,12 +340,19 @@ namespace OPBlocks.Electro
             AddMaterialPort("Feed", "Feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Product", "Product (desalinated)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Waste", "Waste (regeneration)", CapePortDirection.CAPE_OUTLET);
-            AddRealParameter("SAC", "Salt adsorption capacity", 15, 1, 60, "mg/g");
+            AddRealParameter("SAC", "Salt adsorption capacity (carbon electrodes 5-30)", 15, 1, 60, "mg/g");
             AddRealParameter("ElectrodeMass", "Total electrode mass", 1.0, 0.01, 1000, "kg");
             AddRealParameter("CycleTime", "Adsorption cycle time", 300, 10, 3600, "s");
-            AddRealParameter("ChargeEfficiency", "Charge efficiency", 70, 20, 100, "%");
+            AddRealParameter("ChargeEfficiency", "Charge efficiency Lambda (salt per charge)", 70, 20, 100, "%");
             AddRealParameter("WaterRecovery", "Water recovery", 80, 20, 95, "%");
-            AddRealParameter("CellVoltage", "Cell voltage", 1.2, 0.6, 1.8, "V");
+            AddRealParameter("CellVoltage", "Cell voltage (below ~1.4 V to avoid electrolysis)", 1.2, 0.6, 1.8, "V");
+
+            AddOutputParameter("SaltRemoved", "Salt removed (cycle-averaged)", "mol/s");
+            AddOutputParameter("SaltRemoval", "Salt removal", "%");
+            AddOutputParameter("Recovery", "Water recovery", "%");
+            AddOutputParameter("ChargeCurrent", "Average charging current", "A");
+            AddOutputParameter("Power", "Charging power", "kW");
+            AddOutputParameter("SEC", "Specific energy consumption", "kWh/m3");
         }
         public override string BlockCode => "OP-CDI";
 
@@ -301,26 +370,69 @@ namespace OPBlocks.Electro
             var feed = RequireMaterial("Feed"); var prod = RequireMaterial("Product"); var waste = RequireMaterial("Waste");
             int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double[] f = feed.GetOverallMoleFlows(); double Tk = feed.Temperature, p = feed.Pressure;
-            double saltFeed = ProcessOps.Sum(f) - f[wi];
+            double saltFeed = ProcessOps.Sum(f) - (wi >= 0 ? f[wi] : 0);
 
             if (saltFeed <= 1e-12)
                 ReportWarning("The feed contains no dissolved species besides water — nothing to remove. " +
                               "Add the salt/ions to the feed stream composition.");
-            double removedMgS = R("SAC") * (R("ElectrodeMass") * 1000.0) / R("CycleTime"); // mg/s
-            double removedMolS = Math.Min(removedMgS / 58440.0, saltFeed * 0.95);           // as NaCl
-            double rec = R("WaterRecovery") / 100.0;
-            double saltFracToProduct = saltFeed > 0 ? (saltFeed - removedMolS) / saltFeed : 0;
 
-            var frac = new double[f.Length];
-            for (int i = 0; i < f.Length; i++) frac[i] = (i == wi) ? rec : saltFracToProduct;
-            ProcessOps.SplitByRecovery(feed, prod, waste, frac, Tk, p, Tk, p);
+            double rec = ProcessOps.Clamp(R("WaterRecovery"), 0, 100) / 100.0;
+            double prodM3s = (wi >= 0 ? f[wi] : 0) * rec * 0.0180153 / 1000.0;   // product volume basis
 
-            double energyJ = removedMolS * ProcessOps.Faraday * R("CellVoltage") / (R("ChargeEfficiency") / 100.0);
-            double prodM3h = f[wi] * rec * 0.0180153 / 1000.0 * 3600.0;
-            Result("Salt removed", removedMolS, "mol/s", "0.#####");
-            Result("Salt removal", saltFeed > 0 ? removedMolS / saltFeed * 100 : 0, "%", "0.#");
+            var spec = new CdiModel.Spec
+            {
+                SacMgG = R("SAC"),
+                ElectrodeKg = R("ElectrodeMass"),
+                CycleTimeS = R("CycleTime"),
+                ChargeEffPct = R("ChargeEfficiency"),
+                CellVoltageV = R("CellVoltage"),
+                WaterRecoveryPct = R("WaterRecovery"),
+                SaltMwGmol = 58.44,
+            };
+            CdiModel.Perf x = CdiModel.Solve(spec, f, wi, prodM3s);
+
+            if (x.FeedLimited && saltFeed > 1e-12)
+                ReportWarning("The electrodes can adsorb more salt than the feed carries — the cycle time or " +
+                              "electrode mass is oversized for this stream.");
+            if (x.SecKWhM3 > 1.5)
+                ReportWarning(string.Format(
+                    "SEC ({0:0.##} kWh/m3) is above the economic CDI band (~0.1-1 kWh/m3 for brackish water) — " +
+                    "CDI loses to RO above ~3000 ppm feed salinity.", x.SecKWhM3));
+
+            prod.SetOutletTP(x.ProductMol, Tk, p);
+            waste.SetOutletTP(x.WasteMol, Tk, p);
+
+            Result("Salt removed", x.RemovedMolS, "mol/s", "0.######");
+            Result("Salt removal", x.RemovalPct, "%", "0.##");
             Result("Water recovery", R("WaterRecovery"), "%", "0.#");
-            Result("Specific energy consumption", prodM3h > 0 ? energyJ / 3.6e6 / prodM3h : 0, "kWh/m3", "0.###");
+            Result("Average charging current", x.ChargeA, "A", "0.##");
+            Result("Charging power", x.PowerKW, "kW", "0.###");
+            Result("Specific energy consumption", x.SecKWhM3, "kWh/m3", "0.###");
+
+            SetOutputParameter("SaltRemoved", x.RemovedMolS);
+            SetOutputParameter("SaltRemoval", x.RemovalPct);
+            SetOutputParameter("Recovery", R("WaterRecovery"));
+            SetOutputParameter("ChargeCurrent", x.ChargeA);
+            SetOutputParameter("Power", x.PowerKW);
+            SetOutputParameter("SEC", x.SecKWhM3);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Cycle-averaged electrosorption with two independent limits:");
+            sb.AppendLine("    capacity: N_cap = SAC * m_electrode / (MW_salt * t_cycle)");
+            sb.AppendLine("    charge:   N_salt = Lambda * Q / F  ->  Q = N_salt * F / Lambda");
+            sb.AppendLine("  Charging energy E = Q * V_cell (no recovery assumed — conservative).");
+            sb.AppendLine("  SEC = E / Q_product. Removed salt reports to the regeneration waste.");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Validity: brackish feeds (< ~3000 ppm), SAC 5-30 mg/g, V 0.8-1.4;");
+            sb.AppendLine("    published brackish SEC ~ 0.1-1 kWh/m3.");
+            sb.AppendLine("  Refs: Porada et al., Prog. Mater. Sci. 58 (2013) 1388-1442;");
+            sb.AppendLine("        Suss et al., Energy Environ. Sci. 8 (2015) 2296-2319.");
+            return sb.ToString();
         }
     }
 
@@ -341,9 +453,15 @@ namespace OPBlocks.Electro
             AddMaterialPort("Chlorine", "Cl2 out", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Hydrogen", "H2 out", CapePortDirection.CAPE_OUTLET);
             AddRealParameter("Current", "Cell current", 400000, 1, 1e7, "A");
-            AddRealParameter("CurrentEfficiency", "Current efficiency", 96, 70, 100, "%");
-            AddRealParameter("CellVoltage", "Cell voltage", 3.1, 2.0, 4.5, "V");
-            AddRealParameter("WaterTransport", "Water transport per Na+", 3.5, 0, 8, "mol/mol");
+            AddRealParameter("CurrentEfficiency", "Current efficiency (membrane cells 94-97)", 96, 70, 100, "%");
+            AddRealParameter("CellVoltage", "Cell voltage (membrane cells ~3.0-3.3)", 3.1, 2.0, 4.5, "V");
+            AddRealParameter("WaterTransport", "Water transport per Na+ (electro-osmotic drag)", 3.5, 0, 8, "mol/mol");
+
+            AddOutputParameter("Cl2Prod", "Chlorine production", "kg/s");
+            AddOutputParameter("NaOHProd", "Caustic production", "kg/s");
+            AddOutputParameter("H2Prod", "Hydrogen production", "kg/s");
+            AddOutputParameter("Power", "Cell power", "kW");
+            AddOutputParameter("SECCl2", "Specific energy per kg Cl2", "kWh/kg");
         }
         public override string BlockCode => "OP-CHLORALK";
 
@@ -377,39 +495,67 @@ namespace OPBlocks.Electro
             int h2I = ProcessOps.IndexOf(ids, "H2", "HYDROGEN");
             double[] f = bIn.GetOverallMoleFlows(); double Tk = bIn.Temperature, p = bIn.Pressure;
 
-            double eff = R("CurrentEfficiency") / 100.0;
-            double cl2Faradaic = ProcessOps.FaradayMoles(R("Current"), 2, eff); // 2 e- per Cl2
-            // Production can never exceed the NaCl actually fed (2 NaCl per Cl2) —
-            // otherwise chlorine appears from nothing and the mass balance breaks.
-            double cl2Mol = Math.Min(cl2Faradaic, f[naclI] * 0.99 / 2.0);
-            if (cl2Mol < cl2Faradaic * 0.999)
+            var spec = new ChlorAlkaliModel.Spec
+            {
+                CurrentA = R("Current"),
+                CurrentEffPct = R("CurrentEfficiency"),
+                CellVoltageV = R("CellVoltage"),
+                WaterTransport = R("WaterTransport"),
+            };
+            ChlorAlkaliModel.Perf x = ChlorAlkaliModel.Solve(spec, f[naclI], wi >= 0 ? f[wi] : 0.0);
+
+            if (x.BrineLimited)
                 ReportWarning(string.Format(
                     "Brine-limited operation: the feed supplies only enough NaCl for {0:0.####} mol/s Cl2 " +
                     "(the applied current could produce {1:0.####} mol/s). Increase the brine feed or reduce the current.",
-                    cl2Mol, cl2Faradaic));
-            double h2Mol = cl2Mol;                                            // 1 H2 per Cl2
-            double naohMol = 2 * cl2Mol;                                      // 2 NaOH per Cl2
-            double naclCons = 2 * cl2Mol;                                     // 2 NaCl per Cl2
-            double waterMove = Math.Min(naohMol * R("WaterTransport"), f[wi] * 0.9);
+                    x.Cl2MolS, x.FaradaicCl2MolS));
+            if (x.SecKWhKgCl2 > 3.0 && x.Cl2MolS > 0)
+                ReportWarning(string.Format(
+                    "Specific energy ({0:0.##} kWh/kg Cl2) is above the membrane-cell band (2.3-2.7) — " +
+                    "check the cell voltage and current efficiency.", x.SecKWhKgCl2));
 
             var depF = (double[])f.Clone();
-            depF[naclI] -= naclCons;
-            depF[wi] = Math.Max(0, depF[wi] - waterMove);
-            var catF = new double[f.Length]; catF[naohI] = naohMol; catF[wi] = waterMove + naohMol; // caustic solution
-            var cl2F = new double[f.Length]; cl2F[cl2I] = cl2Mol;
-            var h2F = new double[f.Length]; h2F[h2I] = h2Mol;
+            depF[naclI] -= x.NaClConsMolS;
+            if (wi >= 0) depF[wi] = Math.Max(0, depF[wi] - x.WaterToCatholyteMolS);
+            var catF = new double[f.Length]; catF[naohI] = x.NaOHMolS;
+            if (wi >= 0) catF[wi] = x.WaterToCatholyteMolS;                    // caustic solution water
+            var cl2F = new double[f.Length]; cl2F[cl2I] = x.Cl2MolS;
+            var h2F = new double[f.Length]; h2F[h2I] = x.H2MolS;
 
             dep.SetOutletTP(depF, Tk, p);
             cat.SetOutletTP(catF, 80 + 273.15, p);
             cl2.SetOutletTP(cl2F, 80 + 273.15, p);
             h2.SetOutletTP(h2F, 80 + 273.15, p);
 
-            double powerKW = R("CellVoltage") * R("Current") / 1000.0;
-            Result("Chlorine production", cl2Mol * 0.070906, "kg/s", "0.####");
-            Result("Caustic (NaOH) production", naohMol * 0.040, "kg/s", "0.####");
-            Result("Hydrogen production", h2Mol * 0.002016, "kg/s", "0.######");
-            Result("Cell voltage", R("CellVoltage"), "V", "0.##");
-            Result("Specific energy (per t Cl2)", cl2Mol > 0 ? powerKW / (cl2Mol * 0.070906 * 3.6) : 0, "kWh/kg", "0.##");
+            Result("Chlorine production", x.Cl2MolS * ChlorAlkaliModel.MwCl2, "kg/s", "0.####");
+            Result("Caustic (NaOH) production", x.NaOHMolS * ChlorAlkaliModel.MwNaOH, "kg/s", "0.####");
+            Result("Hydrogen production", x.H2MolS * ChlorAlkaliModel.MwH2, "kg/s", "0.######");
+            Result("Cell power", x.PowerKW, "kW", "0.##");
+            Result("Specific energy (per kg Cl2)", x.SecKWhKgCl2, "kWh/kg", "0.##");
+
+            SetOutputParameter("Cl2Prod", x.Cl2MolS * ChlorAlkaliModel.MwCl2);
+            SetOutputParameter("NaOHProd", x.NaOHMolS * ChlorAlkaliModel.MwNaOH);
+            SetOutputParameter("H2Prod", x.H2MolS * ChlorAlkaliModel.MwH2);
+            SetOutputParameter("Power", x.PowerKW);
+            SetOutputParameter("SECCl2", x.SecKWhKgCl2);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Membrane-cell brine electrolysis (Faradaic):");
+            sb.AppendLine("    anode  2 Cl- -> Cl2 + 2 e-;  cathode  2 H2O + 2 e- -> H2 + 2 OH-");
+            sb.AppendLine("    N_Cl2 = eta * I / (2 F);  N_H2 = N_Cl2;  N_NaOH = 2 N_Cl2;");
+            sb.AppendLine("    2 NaCl consumed per Cl2; Na+ crosses the membrane with water drag.");
+            sb.AppendLine("  Production capped by the NaCl actually fed (brine-limited warning).");
+            sb.AppendLine("  SEC = V*I / m_Cl2; at 3.1 V / 96% -> ~2.44 kWh/kg Cl2, inside the");
+            sb.AppendLine("    published membrane-cell band 2.3-2.7 kWh/kg Cl2.");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Refs: O'Brien, Bommaraju & Hine, Handbook of Chlor-Alkali Technology");
+            sb.AppendLine("        (2005) vol.I ch.2;  Schmittinger, Chlorine (2000).");
+            return sb.ToString();
         }
     }
 
@@ -429,8 +575,15 @@ namespace OPBlocks.Electro
             AddMaterialPort("RegenerantIn", "Regenerant in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("SpentOut", "Spent regenerant out", CapePortDirection.CAPE_OUTLET);
             AddRealParameter("ResinVolume", "Resin bed volume", 1000, 1, 1e6, "L");
-            AddRealParameter("Capacity", "Working capacity", 1.2, 0.1, 5, "eq/L");
-            AddRealParameter("RemovalEfficiency", "Target ion removal", 95, 10, 99.9, "%");
+            AddRealParameter("Capacity", "Working capacity (SAC resin ~1-1.4)", 1.2, 0.1, 5, "eq/L");
+            AddRealParameter("RemovalEfficiency", "Target (hardness) ion removal", 95, 10, 99.9, "%");
+            AddRealParameter("TargetValence", "Target ion valence z (integer code; 2 = Ca/Mg hardness)", 2, 1, 3, "-");
+
+            AddOutputParameter("Removal", "Target ion removal", "%");
+            AddOutputParameter("IonsRemoved", "Target ions removed", "mol/s");
+            AddOutputParameter("BedCapacity", "Bed capacity", "eq");
+            AddOutputParameter("ServiceTime", "Service run before regeneration", "h");
+            AddOutputParameter("BedVolumes", "Bed volumes treated per run", "-");
         }
         public override string BlockCode => "OP-IX";
 
@@ -447,21 +600,76 @@ namespace OPBlocks.Electro
         {
             var feed = RequireMaterial("Feed"); var treated = RequireMaterial("Treated");
             var regIn = RequireMaterial("RegenerantIn"); var spent = RequireMaterial("SpentOut");
-            int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
+            string[] ids = feed.ComponentIds;
+            int wi = ProcessOps.IndexOf(ids, "WATER", "H2O");
             double[] f = feed.GetOverallMoleFlows(); double[] rf = regIn.GetOverallMoleFlows();
-            double eff = R("RemovalEfficiency") / 100.0;
 
-            var tf = (double[])f.Clone(); var sf = (double[])rf.Clone();
-            double removedTotal = 0;
+            // target = multivalent (hardness) ions; monovalent background passes —
+            // the strong-acid resin selectivity order Ca2+ > Mg2+ >> Na+ (Helfferich)
+            var isTarget = new bool[f.Length];
+            double targetFlow = 0;
             for (int i = 0; i < f.Length; i++)
-                if (i != wi) { double m = f[i] * eff; tf[i] -= m; if (i < sf.Length) sf[i] += m; removedTotal += m; }
-            treated.SetOutletTP(tf, feed.Temperature, feed.Pressure);
-            spent.SetOutletTP(sf, regIn.Temperature, regIn.Pressure);
+            {
+                if (i == wi) continue;
+                isTarget[i] = NfModel.IsMultivalent(ids != null && i < ids.Length ? ids[i] : null);
+                if (isTarget[i]) targetFlow += f[i];
+            }
 
-            double capEq = R("ResinVolume") * R("Capacity");
-            Result("Ion removal", R("RemovalEfficiency"), "%", "0.###");
-            Result("Ions removed", removedTotal, "mol/s", "0.#####");
-            Result("Bed capacity", capEq, "eq", "0.#");
+            double mF, rhoF, feedM3s;
+            if (feed.TryGetTotalMassFlowKgS(out mF) && mF > 1e-30 && feed.TryGetMassDensityKgM3(out rhoF))
+                feedM3s = mF / rhoF;
+            else
+                feedM3s = (wi >= 0 ? f[wi] : 0) * 0.0180153 / 1000.0;
+
+            var spec = new IxModel.Spec
+            {
+                ResinVolumeL = R("ResinVolume"),
+                CapacityEqL = R("Capacity"),
+                RemovalPct = R("RemovalEfficiency"),
+                TargetValence = R("TargetValence"),
+            };
+            IxModel.Perf x = IxModel.Solve(spec, f, rf, wi, isTarget, feedM3s);
+
+            if (targetFlow <= 1e-15)
+                ReportWarning("No multivalent (hardness) ion flow in the feed — nothing loads the resin. " +
+                              "Softening removes Ca/Mg; add them to the feed composition (monovalent ions pass).");
+            if (x.ServiceHours > 0 && x.ServiceHours < 8)
+                ReportWarning(string.Format(
+                    "Service run ({0:0.#} h) is short — the bed will regenerate more than thrice a day. " +
+                    "Increase the resin volume or reduce the hardness load.", x.ServiceHours));
+
+            treated.SetOutletTP(x.TreatedMol, feed.Temperature, feed.Pressure);
+            spent.SetOutletTP(x.SpentMol, regIn.Temperature, regIn.Pressure);
+
+            Result("Target ion removal", R("RemovalEfficiency"), "%", "0.###");
+            Result("Target ions removed", x.RemovedMolS, "mol/s", "0.######");
+            Result("Bed capacity", x.BedCapacityEq, "eq", "0.#");
+            Result("Service run", x.ServiceHours, "h", "0.##");
+            Result("Bed volumes treated per run", x.BedVolumesTreated, "-", "0.#");
+
+            SetOutputParameter("Removal", R("RemovalEfficiency"));
+            SetOutputParameter("IonsRemoved", x.RemovedMolS);
+            SetOutputParameter("BedCapacity", x.BedCapacityEq);
+            SetOutputParameter("ServiceTime", x.ServiceHours);
+            SetOutputParameter("BedVolumes", x.BedVolumesTreated);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Equivalents-based fixed-bed service model (softening duty):");
+            sb.AppendLine("    load [eq/s] = sum(target mol/s) * z * removal");
+            sb.AppendLine("    service time = ResinVolume * Capacity / load");
+            sb.AppendLine("  Target ions = multivalent Ca2+/Mg2+ (strong-acid resin selectivity");
+            sb.AppendLine("    order Ca2+ > Mg2+ >> Na+); monovalent background passes.");
+            sb.AppendLine("  Removed ions leave with the spent regenerant (4-stream mass balance).");
+            sb.AppendLine("  Thermo from the selected Property Package.");
+            sb.AppendLine("  Validity: SAC softening, capacity ~1-1.4 eq/L, removal 90-99%.");
+            sb.AppendLine("  Refs: Helfferich, Ion Exchange (1962);");
+            sb.AppendLine("        Crittenden et al. (MWH), Water Treatment 3e (2012) ch.16.");
+            return sb.ToString();
         }
     }
 }
