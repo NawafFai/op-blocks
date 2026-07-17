@@ -127,6 +127,42 @@ Each block is built against the same gates (full engineering journal:
 | `scripts/` | build / register / package / installer scripts |
 | `installer/` | Inno Setup script, Aspen palette (`ONE PROCESS.apm`), templates |
 
+## Roadmap — Phase 2 (planned)
+
+v1.0 delivers 25 custom CAPE-OPEN blocks for Aspen Plus V14. Phase 2 aims to
+grow OP-Blocks from a block library into a **platform**. This is a direction,
+not a shipped feature set — nothing below is done yet.
+
+**1. Aspen HYSYS support** — the same physics core exposed through the HYSYS
+Extension mechanism, so every block can run across all three major simulators
+(Aspen Plus, DWSIM, HYSYS).
+
+**2. 34 new blocks** across new families:
+
+| Family | Examples |
+|---|---|
+| Signature | Diesel Generator (realistic exhaust + heat rejection), Concrete/Aggregate Crusher |
+| Bioprocess | BioReactor, Anaerobic Digester, Crossflow UF/DF, Centrifuge, Chromatography, Crystallizer |
+| Engineering-standard | Relief Valve (API 520), Restriction Orifice (ISO 5167), Fired Heater (API 560), Cooling Tower |
+| Refinery shortcut | Shortcut CDU, FCC, Claus SRU, Amine Treater, Hydrocracker, Reformer, HDS, Coker |
+
+**3. The Converter** *(the headline idea)* — build your **own** block with the
+help of any AI. Copy a prompt from the OP-Blocks Manager, paste it into any AI,
+describe the equipment you want, and get back a JSON recipe. Upload it, and a
+pre-registered generic block configures itself — ports, parameters, equations,
+results — and installs into your simulator. No coding, no compiler. Export and
+share blocks as `.opblock` files, turning OP-Blocks into a community.
+
+**Design principles carried from v1.0:** rigorous vs. screening accuracy
+labeled per block, thermodynamics always delegated to the host property
+package, and every block validated against the literature before release.
+
+> Phase 2 is a roadmap, not a release, and its pace depends on real interest.
+> **If a specific block or simulator matters to you — ⭐ star the repo and open
+> a [Discussion](https://github.com/NawafFai/op-blocks/discussions) or an
+> [issue](https://github.com/NawafFai/op-blocks/issues).** That feedback
+> decides what gets built first.
+
 ## Contact
 
 Questions, bug reports, or collaboration: **alahmadnf@outlook.com**
