@@ -216,13 +216,21 @@ namespace OPBlocks.Desalination
             AddMaterialPort("HotOut", "Hot feed out", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("ColdIn", "Cold permeate in", CapePortDirection.CAPE_INLET);
             AddMaterialPort("ColdOut", "Cold permeate out", CapePortDirection.CAPE_OUTLET);
-            AddRealParameter("Area", "Membrane area", 1.0, 0.01, 1e5, "m2");
-            AddRealParameter("PoreDia", "Mean pore diameter", 0.2, 0.01, 2, "um");
+
+            AddRealParameter("Area", "Total membrane area", 1.0, 0.01, 1e5, "m2");
+            AddRealParameter("PoreDia", "Mean pore diameter (DCMD ~ 0.1-1)", 0.2, 0.01, 2, "um");
             AddRealParameter("Porosity", "Membrane porosity", 0.75, 0.1, 0.95, "-");
             AddRealParameter("Tortuosity", "Pore tortuosity", 1.5, 1, 4, "-");
             AddRealParameter("Thickness", "Membrane thickness", 100, 10, 500, "um");
-            AddRealParameter("HotActivity", "Water activity, hot side", 0.96, 0.5, 1.0, "-");
-            AddRealParameter("Kmembrane", "Membrane permeability calibration", 3.5e-4, 1e-6, 1e-1, "-");
+            AddRealParameter("HotActivity", "Water activity of the hot brine a_w", 0.96, 0.5, 1.0, "-");
+            AddRealParameter("Kmembrane", "Membrane coefficient calibration K (lumps diffusivity + polarization)", 3.5e-4, 1e-6, 1e-1, "-");
+            AddRealParameter("MaxTransfer", "Maximum fraction of hot water transferred", 95, 5, 99.9, "%");
+
+            AddOutputParameter("PermFlux", "Permeate flux", "L/m2/h");
+            AddOutputParameter("PermRate", "Permeate rate", "kg/s");
+            AddOutputParameter("Bm", "Membrane coefficient Bm", "kg/m2/s/Pa");
+            AddOutputParameter("DrivingForce", "Vapour-pressure driving force", "Pa");
+            AddOutputParameter("LatentDuty", "Latent heat duty", "kW");
         }
         public override string BlockCode => "OP-MD";
 
@@ -243,21 +251,69 @@ namespace OPBlocks.Desalination
             double[] hf = hIn.GetOverallMoleFlows(); double[] cf = cIn.GetOverallMoleFlows();
             double Th = hIn.Temperature, Tc = cIn.Temperature, Ph = hIn.Pressure, Pc = cIn.Pressure;
 
-            double Bm = R("Kmembrane") * R("Porosity") * R("PoreDia") / (R("Tortuosity") * R("Thickness")); // kg/m2/s/Pa
-            double pHot = R("HotActivity") * ProcessOps.PsatWaterPa(Th - 273.15);
-            double pCold = ProcessOps.PsatWaterPa(Tc - 273.15);
-            double J = Bm * Math.Max(0, pHot - pCold);           // kg/m2/s
-            double permMol = Math.Min(J * R("Area") / 0.0180153, hf[wi] * 0.999);
+            var spec = new MdModel.Spec
+            {
+                AreaM2 = R("Area"),
+                Kcal = R("Kmembrane"),
+                PorosityFrac = R("Porosity"),
+                PoreDiaUm = R("PoreDia"),
+                TortuosityFac = R("Tortuosity"),
+                ThicknessUm = R("Thickness"),
+                HotActivity = R("HotActivity"),
+                MaxTransferPct = R("MaxTransfer"),
+            };
+            MdModel.Flux x = MdModel.Solve(spec, wi >= 0 ? hf[wi] : 0.0, Th, Tc);
 
-            var hof = (double[])hf.Clone(); hof[wi] -= permMol;
-            var cof = (double[])cf.Clone(); cof[wi] += permMol;
+            if (Th <= Tc)
+                ReportWarning(string.Format(
+                    "No thermal driving force: the hot side ({0:0.#} C) is not hotter than the cold side ({1:0.#} C) — " +
+                    "no vapour crosses the membrane.", Th - 273.15, Tc - 273.15));
+            else if (x.DrivingPa <= 0)
+                ReportWarning("The brine's reduced water activity cancels the temperature advantage — " +
+                              "no net vapour-pressure driving force. Raise the hot temperature or dilute the brine.");
+            if (x.TransferCapped)
+                ReportWarning(string.Format(
+                    "Vapour transfer limited to the MaxTransfer cap ({0:0.#}% of the hot-side water) — " +
+                    "the membrane area is oversized for this feed flow.", spec.MaxTransferPct));
+
+            // only water vapour crosses; non-volatile solutes stay on the hot side (complete rejection)
+            var hof = (double[])hf.Clone(); if (wi >= 0) hof[wi] -= x.WaterMolS;
+            var cof = (double[])cf.Clone(); if (wi >= 0) cof[wi] += x.WaterMolS;
             hOut.SetOutletTP(hof, Th, Ph);
             cOut.SetOutletTP(cof, Tc, Pc);
 
-            Result("Permeate flux (LMH)", J * 3600.0, "L/m2/h", "0.###");
-            Result("Permeate rate", permMol * 0.0180153, "kg/s", "0.#####");
-            Result("Membrane permeability Bm", Bm, "kg/m2/s/Pa", "0.###E+0");
-            Result("Vapour-pressure driving force", pHot - pCold, "Pa", "0.#");
+            Result("Permeate flux", x.FluxLMH, "L/m2/h", "0.###");
+            Result("Permeate rate", x.WaterMolS * 0.0180153, "kg/s", "0.#####");
+            Result("Membrane coefficient Bm", x.BmKgM2sPa, "kg/m2/s/Pa", "0.###E+0");
+            Result("Vapour-pressure driving force", x.DrivingPa, "Pa", "0.#");
+            Result("Latent heat duty", x.LatentKW, "kW", "0.###");
+
+            SetOutputParameter("PermFlux", x.FluxLMH);
+            SetOutputParameter("PermRate", x.WaterMolS * 0.0180153);
+            SetOutputParameter("Bm", x.BmKgM2sPa);
+            SetOutputParameter("DrivingForce", x.DrivingPa);
+            SetOutputParameter("LatentDuty", x.LatentKW);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Vapour flux across the hydrophobic membrane (DCMD):");
+            sb.AppendLine("    J  = Bm * (a_w * Psat(T_hot) - Psat(T_cold))   [kg/m2/s]");
+            sb.AppendLine("    Bm = K * porosity * d_pore / (tortuosity * thickness)");
+            sb.AppendLine("    (Knudsen/molecular scaling; K lumps diffusivity + polarization).");
+            sb.AppendLine("  Psat from the Antoine correlation (ProcessOps.PsatWaterPa).");
+            sb.AppendLine("  Non-volatile solutes cannot evaporate -> complete salt rejection;");
+            sb.AppendLine("    the brine's water activity a_w lowers the hot-side vapour pressure.");
+            sb.AppendLine("  Latent duty = J * A * lambda (~2333 kJ/kg at 60 C).");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Validity: Th 40-85 C, Tc 15-35 C, pore 0.1-1 um, flux ~ 5-60 LMH.");
+            sb.AppendLine("  Refs: Schofield, Fane & Fell, J. Membr. Sci. 33 (1987) 299-313;");
+            sb.AppendLine("        Lawson & Lloyd, J. Membr. Sci. 124 (1997) 1-25;");
+            sb.AppendLine("        Khayet, Adv. Colloid Interface Sci. 164 (2011) 56-88.");
+            return sb.ToString();
         }
     }
 
@@ -275,10 +331,21 @@ namespace OPBlocks.Desalination
             AddMaterialPort("Feed", "Seawater feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Distillate", "Distillate (product water)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Brine", "Reject brine", CapePortDirection.CAPE_OUTLET);
-            AddIntParameter("NEffects", "Number of effects", 4, 1, 16);
-            AddRealParameter("WaterRecovery", "Water recovery", 40, 1, 80, "%");
-            AddRealParameter("TopBrineTemp", "Top brine temperature", 65, 40, 110, "C");
-            AddRealParameter("LatentHeat", "Latent heat of vaporisation", 2320, 2000, 2500, "kJ/kg");
+
+            // NOTE: effect count is a REAL parameter with an integer code — the
+            // golden rule (Integer/Option parameters blank Aspen's grid).
+            AddRealParameter("NEffects", "Number of effects (integer code; industrial MED 4-14)", 8, 1, 16, "-");
+            AddRealParameter("WaterRecovery", "Water recovery", 40, 1, 60, "%");
+            AddRealParameter("TopBrineTemp", "Top brine temperature (scaling limit ~70 C)", 65, 40, 110, "C");
+            AddRealParameter("DistillateTemp", "Distillate (last effect) temperature", 40, 25, 60, "C");
+            AddRealParameter("GorPerEffect", "GOR per effect k (GOR = k*N; 0.8-0.9)", 0.85, 0.5, 1.0, "-");
+            AddRealParameter("LatentHeat", "Latent heat of vaporisation", 2326, 2000, 2500, "kJ/kg");
+
+            AddOutputParameter("DistFlow", "Distillate flow", "m3/h");
+            AddOutputParameter("GOR", "Gained output ratio", "kg/kg");
+            AddOutputParameter("SteamDuty", "Motive steam duty", "kW");
+            AddOutputParameter("STE", "Specific thermal energy", "kWh/m3");
+            AddOutputParameter("BrineCF", "Brine concentration factor", "-");
         }
         public override string BlockCode => "OP-MED";
 
@@ -296,21 +363,64 @@ namespace OPBlocks.Desalination
             var feed = RequireMaterial("Feed"); var dist = RequireMaterial("Distillate"); var brine = RequireMaterial("Brine");
             int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double[] f = feed.GetOverallMoleFlows(); double p = feed.Pressure;
-            double distWater = f[wi] * R("WaterRecovery") / 100.0;
 
-            var df = new double[f.Length]; df[wi] = distWater;
-            var bf = (double[])f.Clone(); bf[wi] -= distWater;
-            dist.SetOutletTP(df, 40 + 273.15, p);
+            var spec = new MedModel.Spec
+            {
+                NEffects = R("NEffects"),
+                RecoveryPct = R("WaterRecovery"),
+                TopBrineTempC = R("TopBrineTemp"),
+                GorPerEffect = R("GorPerEffect"),
+                LatentKJKg = R("LatentHeat"),
+            };
+            MedModel.Perf perf = MedModel.Solve(spec, wi >= 0 ? f[wi] : 0.0);
+
+            if (spec.TopBrineTempC > MedModel.ScalingTbtC)
+                ReportWarning(string.Format(
+                    "Top brine temperature ({0:0.#} C) exceeds the MED scaling limit (~{1:0} C) — CaSO4/CaCO3 " +
+                    "scale risk on the tube bundles. Industrial MED runs at 60-70 C.", spec.TopBrineTempC, MedModel.ScalingTbtC));
+            double recFrac = ProcessOps.Clamp(spec.RecoveryPct, 0, 100) / 100.0;
+            double brineCF = recFrac < 1.0 ? 1.0 / (1.0 - recFrac) : 0.0;
+            if (brineCF > 2.5)
+                ReportWarning(string.Format(
+                    "Brine concentration factor ({0:0.##}) is high — seawater MED usually rejects at CF < 2.5 to " +
+                    "control scaling; reduce the recovery.", brineCF));
+
+            // distillate is pure water (salts are non-volatile)
+            var df = new double[f.Length]; if (wi >= 0) df[wi] = perf.DistWaterMolS;
+            var bf = (double[])f.Clone(); if (wi >= 0) bf[wi] -= perf.DistWaterMolS;
+            dist.SetOutletTP(df, R("DistillateTemp") + 273.15, p);
             brine.SetOutletTP(bf, R("TopBrineTemp") + 273.15, p);
 
-            double gor = 0.85 * I("NEffects");
-            double distKgS = distWater * 0.0180153;
-            double steamKW = distKgS * R("LatentHeat") / Math.Max(gor, 0.1);
-            double distM3h = distKgS / 1000.0 * 3600.0;
-            Result("Distillate flow", distM3h, "m3/h", "0.####");
-            Result("Gained Output Ratio (GOR)", gor, "kg/kg", "0.##");
-            Result("Motive steam duty", steamKW, "kW", "0.##");
-            Result("Specific thermal energy", distM3h > 0 ? steamKW / distM3h : 0, "kWh/m3", "0.#");
+            Result("Distillate flow", perf.DistM3h, "m3/h", "0.####");
+            Result("Gained Output Ratio (GOR)", perf.Gor, "kg/kg", "0.##");
+            Result("Motive steam duty", perf.SteamKW, "kW", "0.##");
+            Result("Specific thermal energy", perf.SteKWhM3, "kWh/m3", "0.#");
+            Result("Brine concentration factor", brineCF, "-", "0.###");
+
+            SetOutputParameter("DistFlow", perf.DistM3h);
+            SetOutputParameter("GOR", perf.Gor);
+            SetOutputParameter("SteamDuty", perf.SteamKW);
+            SetOutputParameter("STE", perf.SteKWhM3);
+            SetOutputParameter("BrineCF", brineCF);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Industrial MED shortcut (El-Dessouky & Ettouney):");
+            sb.AppendLine("    GOR = k * N_effects           (k ~ 0.8-0.9)");
+            sb.AppendLine("    Q_steam = D * lambda / GOR;   STE = Q_steam / Q_distillate");
+            sb.AppendLine("  Distillate D = recovery * feed water; salts are non-volatile so the");
+            sb.AppendLine("    distillate is pure water and the brine carries every solute.");
+            sb.AppendLine("  Brine concentration factor CF = 1/(1 - recovery); CF > 2.5 flagged.");
+            sb.AppendLine("  TBT above ~70 C flagged (CaSO4/CaCO3 scaling on MED bundles).");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Validity: N 2-16, TBT 55-70 C; N=8 -> GOR ~ 6.8, STE ~ 95 kWh/m3.");
+            sb.AppendLine("  Refs: El-Dessouky & Ettouney, Fundamentals of Salt Water Desalination");
+            sb.AppendLine("        (2002) ch.8;  Al-Shammiri & Safar, Desalination 126 (1999) 45-59.");
+            return sb.ToString();
         }
     }
 
@@ -328,10 +438,20 @@ namespace OPBlocks.Desalination
             AddMaterialPort("Feed", "Seawater feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Distillate", "Distillate (product water)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Brine", "Reject brine", CapePortDirection.CAPE_OUTLET);
-            AddIntParameter("NStages", "Number of flash stages", 20, 3, 40);
-            AddRealParameter("TopBrineTemp", "Top brine temperature", 90, 60, 120, "C");
-            AddRealParameter("WaterRecovery", "Water recovery", 40, 1, 70, "%");
+
+            // golden rule: stage count as a REAL integer code
+            AddRealParameter("NStages", "Number of flash stages (integer code; industrial 16-28)", 24, 3, 40, "-");
+            AddRealParameter("TopBrineTemp", "Top brine temperature", 110, 60, 120, "C");
+            AddRealParameter("LastStageTemp", "Last-stage brine temperature", 40, 30, 55, "C");
+            AddRealParameter("ThermoLoss", "Per-stage thermodynamic losses (BPE + NEA)", 2.5, 0.5, 5, "K");
+            AddRealParameter("SpecificHeat", "Brine specific heat", 4.0, 3.5, 4.3, "kJ/kg/K");
             AddRealParameter("LatentHeat", "Latent heat of vaporisation", 2330, 2000, 2500, "kJ/kg");
+
+            AddOutputParameter("DistFlow", "Distillate flow", "m3/h");
+            AddOutputParameter("Recovery", "Once-through water recovery", "%");
+            AddOutputParameter("PR", "Performance ratio", "kg/kg");
+            AddOutputParameter("HeaterDuty", "Brine heater duty", "kW");
+            AddOutputParameter("STE", "Specific thermal energy", "kWh/m3");
         }
         public override string BlockCode => "OP-MSF";
 
@@ -341,6 +461,7 @@ namespace OPBlocks.Desalination
             var f = GetConnectedMaterial("Feed");
             if (f == null) { message = "Connect a feed stream."; return false; }
             if (ProcessOps.IndexOf(f.ComponentIds, "WATER", "H2O") < 0) { message = "Feed must contain water."; return false; }
+            if (R("TopBrineTemp") <= R("LastStageTemp")) { message = "TopBrineTemp must exceed LastStageTemp (the flash range)."; return false; }
             return true;
         }
 
@@ -349,22 +470,77 @@ namespace OPBlocks.Desalination
             var feed = RequireMaterial("Feed"); var dist = RequireMaterial("Distillate"); var brine = RequireMaterial("Brine");
             int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
             double[] f = feed.GetOverallMoleFlows(); double p = feed.Pressure;
-            double distWater = f[wi] * R("WaterRecovery") / 100.0;
 
-            var df = new double[f.Length]; df[wi] = distWater;
-            var bf = (double[])f.Clone(); bf[wi] -= distWater;
-            dist.SetOutletTP(df, 40 + 273.15, p);
-            brine.SetOutletTP(bf, R("TopBrineTemp") + 273.15, p);
+            double[] mw;
+            bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
+            double feedKgS;
+            if (!feed.TryGetTotalMassFlowKgS(out feedKgS) || feedKgS <= 1e-30)
+            {
+                feedKgS = 0;
+                if (haveMw) for (int i = 0; i < f.Length; i++) feedKgS += f[i] * mw[i] / 1000.0;
+                else
+                {
+                    feedKgS = (wi >= 0 ? f[wi] : 0.0) * 0.0180153;
+                    ReportWarning("The property package supplied neither a total mass flow nor molecular weights — " +
+                                  "the brine-heater duty uses the water mass only.");
+                }
+            }
 
-            double gor = 0.9 * Math.Sqrt(I("NStages"));
-            double distKgS = distWater * 0.0180153;
-            double steamKW = distKgS * R("LatentHeat") / Math.Max(gor, 0.1);
-            double distM3h = distKgS / 1000.0 * 3600.0;
-            Result("Distillate flow", distM3h, "m3/h", "0.####");
-            Result("Gained Output Ratio (GOR)", gor, "kg/kg", "0.##");
-            Result("Performance ratio", gor, "-", "0.##");
-            Result("Motive steam duty", steamKW, "kW", "0.##");
-            Result("Specific thermal energy", distM3h > 0 ? steamKW / distM3h : 0, "kWh/m3", "0.#");
+            var spec = new MsfModel.Spec
+            {
+                NStages = R("NStages"),
+                TopBrineTempC = R("TopBrineTemp"),
+                LastStageTempC = R("LastStageTemp"),
+                ThermoLossK = R("ThermoLoss"),
+                CpKJKgK = R("SpecificHeat"),
+                LatentKJKg = R("LatentHeat"),
+            };
+            MsfModel.Perf perf = MsfModel.Solve(spec, wi >= 0 ? f[wi] : 0.0, feedKgS);
+
+            ReportWarning(string.Format(
+                "MSF is a low-recovery process by nature: the once-through recovery from the {0:0.#} K flash range " +
+                "is {1:0.#}% — plants recirculate brine to raise the apparent recovery.",
+                perf.FlashRangeK, perf.RecoveryFrac * 100));
+            if (spec.TopBrineTempC > 112)
+                ReportWarning(string.Format(
+                    "Top brine temperature ({0:0.#} C) exceeds the usual MSF limit (~112 C with antiscalant) — scale risk.",
+                    spec.TopBrineTempC));
+
+            var df = new double[f.Length]; if (wi >= 0) df[wi] = perf.DistWaterMolS;
+            var bf = (double[])f.Clone(); if (wi >= 0) bf[wi] -= perf.DistWaterMolS;
+            dist.SetOutletTP(df, R("LastStageTemp") + 273.15, p);
+            brine.SetOutletTP(bf, R("LastStageTemp") + 273.15, p);
+
+            Result("Distillate flow", perf.DistM3h, "m3/h", "0.####");
+            Result("Once-through recovery", perf.RecoveryFrac * 100, "%", "0.##");
+            Result("Performance ratio", perf.PerfRatio, "kg/kg", "0.##");
+            Result("Brine heater duty", perf.HeaterKW, "kW", "0.##");
+            Result("Specific thermal energy", perf.SteKWhM3, "kWh/m3", "0.#");
+
+            SetOutputParameter("DistFlow", perf.DistM3h);
+            SetOutputParameter("Recovery", perf.RecoveryFrac * 100);
+            SetOutputParameter("PR", perf.PerfRatio);
+            SetOutputParameter("HeaterDuty", perf.HeaterKW);
+            SetOutputParameter("STE", perf.SteKWhM3);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  Once-through MSF (El-Dessouky & Ettouney ch.6):");
+            sb.AppendLine("    y  = cp * dT_stage / lambda     (flash fraction per stage)");
+            sb.AppendLine("    D  = Mf * [1 - (1 - y)^N];      dT_stage = (TBT - T_last)/N");
+            sb.AppendLine("    Q_heater = Mf * cp * (dT_stage + dT_loss)   (BPE + NEA losses)");
+            sb.AppendLine("    PR = D * lambda / Q_heater      (performance ratio ~ GOR)");
+            sb.AppendLine("  Distillate is pure water (salts non-volatile); brine keeps every solute.");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Validity: N 10-40, TBT 90-112 C, dT_loss 1.5-3 K; 24 stages -> PR ~ 8-12,");
+            sb.AppendLine("    once-through recovery ~ 8-12% (industrial plants recirculate).");
+            sb.AppendLine("  Refs: El-Dessouky & Ettouney, Fundamentals of Salt Water Desalination");
+            sb.AppendLine("        (2002) ch.6;  Khawaji et al., Desalination 221 (2008) 47-69.");
+            return sb.ToString();
         }
     }
 
@@ -382,10 +558,17 @@ namespace OPBlocks.Desalination
             AddMaterialPort("Feed", "Feed", CapePortDirection.CAPE_INLET);
             AddMaterialPort("Distillate", "Distillate (product water)", CapePortDirection.CAPE_OUTLET);
             AddMaterialPort("Brine", "Concentrated brine", CapePortDirection.CAPE_OUTLET);
+
             AddRealParameter("WaterRecovery", "Water recovery", 45, 1, 90, "%");
-            AddRealParameter("CompressionRatio", "Vapour compression ratio", 1.3, 1.05, 3, "-");
+            AddRealParameter("CompressionRatio", "Vapour compression ratio (must clear the BPE; 1.1-2)", 1.3, 1.05, 3, "-");
             AddRealParameter("CompressorEff", "Compressor isentropic efficiency", 75, 30, 95, "%");
-            AddRealParameter("DeltaT", "Temperature rise across compression", 5, 1, 20, "C");
+            AddRealParameter("EvapTemp", "Evaporator saturation temperature", 60, 45, 80, "C");
+
+            AddOutputParameter("DistFlow", "Distillate flow", "m3/h");
+            AddOutputParameter("CompPower", "Compressor power", "kW");
+            AddOutputParameter("SpecWork", "Specific compression work", "kJ/kg");
+            AddOutputParameter("SEC", "Specific electrical energy", "kWh/m3");
+            AddOutputParameter("BrineCF", "Brine concentration factor", "-");
         }
         public override string BlockCode => "OP-MVC";
 
@@ -402,22 +585,65 @@ namespace OPBlocks.Desalination
         {
             var feed = RequireMaterial("Feed"); var dist = RequireMaterial("Distillate"); var brine = RequireMaterial("Brine");
             int wi = ProcessOps.IndexOf(feed.ComponentIds, "WATER", "H2O");
-            double[] f = feed.GetOverallMoleFlows(); double p = feed.Pressure; double tK = feed.Temperature;
-            double distWater = f[wi] * R("WaterRecovery") / 100.0;
+            double[] f = feed.GetOverallMoleFlows(); double p = feed.Pressure;
 
-            var df = new double[f.Length]; df[wi] = distWater;
-            var bf = (double[])f.Clone(); bf[wi] -= distWater;
-            dist.SetOutletTP(df, tK + R("DeltaT"), p);
-            brine.SetOutletTP(bf, tK + R("DeltaT"), p);
+            var spec = new MvcModel.Spec
+            {
+                RecoveryPct = R("WaterRecovery"),
+                CompressionRatio = R("CompressionRatio"),
+                CompressorEffPct = R("CompressorEff"),
+                EvapTempC = R("EvapTemp"),
+            };
+            MvcModel.Perf perf = MvcModel.Solve(spec, wi >= 0 ? f[wi] : 0.0);
 
-            double vaporKgS = distWater * 0.0180153;
-            // Polytropic-style specific compression work for steam (cp~2 kJ/kgK, (k-1)/k~0.2).
-            double wKjKg = 2.0 * tK * (Math.Pow(R("CompressionRatio"), 0.2) - 1.0) / (R("CompressorEff") / 100.0);
-            double powerKW = vaporKgS * wKjKg;
-            double distM3h = vaporKgS / 1000.0 * 3600.0;
-            Result("Distillate flow", distM3h, "m3/h", "0.####");
-            Result("Compressor power", powerKW, "kW", "0.##");
-            Result("Specific electrical energy", distM3h > 0 ? powerKW / distM3h : 0, "kWh/m3", "0.##");
+            if (spec.CompressionRatio < MvcModel.MinUsefulCR)
+                ReportWarning(string.Format(
+                    "Compression ratio ({0:0.##}) is below the practical MVC minimum (~{1:0.#}) — after the brine's " +
+                    "boiling-point elevation there may be no temperature driving force left in the evaporator.",
+                    spec.CompressionRatio, MvcModel.MinUsefulCR));
+            double recFrac = ProcessOps.Clamp(spec.RecoveryPct, 0, 100) / 100.0;
+            double brineCF = recFrac < 1.0 ? 1.0 / (1.0 - recFrac) : 0.0;
+            if (brineCF > 3.0)
+                ReportWarning(string.Format(
+                    "Brine concentration factor ({0:0.##}) is very high — MVC brine concentrators run to CF ~ 3; " +
+                    "beyond that expect scaling and a rising BPE.", brineCF));
+
+            double tOutK = spec.EvapTempC + 273.15;
+            var df = new double[f.Length]; if (wi >= 0) df[wi] = perf.VaporMolS;
+            var bf = (double[])f.Clone(); if (wi >= 0) bf[wi] -= perf.VaporMolS;
+            dist.SetOutletTP(df, tOutK, p);
+            brine.SetOutletTP(bf, tOutK, p);
+
+            Result("Distillate flow", perf.DistM3h, "m3/h", "0.####");
+            Result("Compressor power", perf.PowerKW, "kW", "0.##");
+            Result("Specific compression work", perf.SpecWorkKJKg, "kJ/kg", "0.##");
+            Result("Specific electrical energy", perf.SecKWhM3, "kWh/m3", "0.##");
+            Result("Brine concentration factor", brineCF, "-", "0.###");
+
+            SetOutputParameter("DistFlow", perf.DistM3h);
+            SetOutputParameter("CompPower", perf.PowerKW);
+            SetOutputParameter("SpecWork", perf.SpecWorkKJKg);
+            SetOutputParameter("SEC", perf.SecKWhM3);
+            SetOutputParameter("BrineCF", brineCF);
+        }
+
+        protected override string BuildReport()
+        {
+            var sb = new System.Text.StringBuilder(base.BuildReport());
+            sb.AppendLine();
+            sb.AppendLine("Model & References");
+            sb.AppendLine("  All-electric evaporation: the vapour is compressed and returned as");
+            sb.AppendLine("  the heat source. Specific compression work (steam, ideal-gas form):");
+            sb.AppendLine("    w = cp_v * T_sat * [ CR^((g-1)/g) - 1 ] / eta_isentropic");
+            sb.AppendLine("    cp_v = 1.88 kJ/kg K, (g-1)/g = 0.248 for steam.");
+            sb.AppendLine("  Power = w * m_vapour;  SEC = Power / Q_distillate.");
+            sb.AppendLine("  CR must clear the brine's boiling-point elevation (advisory at CR<1.1).");
+            sb.AppendLine("  Distillate is pure water; the brine keeps every solute (CF = 1/(1-r)).");
+            sb.AppendLine("  All stream thermodynamics come from the selected Property Package.");
+            sb.AppendLine("  Validity: CR 1.1-2, recovery 30-60%, T_evap 50-75 C -> SEC ~ 8-16 kWh/m3.");
+            sb.AppendLine("  Refs: El-Dessouky & Ettouney, Fundamentals of Salt Water Desalination");
+            sb.AppendLine("        (2002) ch.7;  Aly & El-Fiqi, Desalination 158 (2003) 143-150.");
+            return sb.ToString();
         }
     }
 }
