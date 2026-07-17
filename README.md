@@ -1,5 +1,7 @@
 # ONE PROCESS Blocks (OP-Blocks)
 
+**English** · [العربية](README.ar.md)
+
 ![version](https://img.shields.io/badge/version-1.0.0-29ABE2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
