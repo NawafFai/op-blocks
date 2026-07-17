@@ -10,14 +10,16 @@
 **25 open-source CAPE-OPEN unit operations for water, desalination, lithium and
 green-energy flowsheets — built for Aspen Plus V14.**
 
+![The 25 ONE PROCESS blocks, grouped by family](docs/media/block-gallery.png)
+
 Every block follows the same engineered pattern: a pure physics engine with
 published references, host-safe CAPE-OPEN wiring, a two-tab Input/Results form,
 and a validation test suite pinned to textbook anchors. **369 unit tests, all
 green** (per-block validation suites + framework tests), plus live
 COM-activation and in-Aspen palette verification.
 
-> 📷 *Screenshots coming with the release: the CAPE-OPEN palette in Aspen Plus
-> V14 showing all 25 blocks, and a converged OP-RO seawater case.*
+> 📷 *In-Aspen screenshots to be added at release: the CAPE-OPEN palette in
+> Aspen Plus V14 with all 25 blocks, and a converged OP-RO seawater case.*
 > <!-- TODO(release): add docs/media/palette.png and docs/media/op-ro-run.png -->
 
 ---
