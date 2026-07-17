@@ -7,12 +7,12 @@
 ![version](https://img.shields.io/badge/version-1.0.0-29ABE2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
-![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20V14%20%7C%20DWSIM-1B3A5C)
+![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20%7C%20DWSIM-1B3A5C)
 ![tests](https://img.shields.io/badge/tests-369%20passing-brightgreen)
 ![blocks](https://img.shields.io/badge/blocks-25-29ABE2)
 
 **‏25 عملية وحدة (Unit Operation) مفتوحة المصدر بمعيار CAPE-OPEN، لمحاكاة معالجة
-المياه والتحلية والليثيوم والطاقة الخضراء — لبرنامجَي Aspen Plus V14 و DWSIM.**
+المياه والتحلية والليثيوم والطاقة الخضراء — لبرنامجَي Aspen Plus و DWSIM.**
 
 ![البلوكات الـ 25، مصنّفة حسب العائلة](docs/media/block-gallery.png)
 
@@ -20,7 +20,7 @@
 المضيف عبر واجهات CAPE-OPEN، فورم بتبويبين (المدخلات/النتائج)، وحزمة اختبارات
 تحقّق مثبَّتة على مراجع علمية. **‏369 اختبار وحدة، كلها ناجحة** (حزم تحقّق لكل
 بلوك + اختبارات البنية)، إضافةً إلى تفعيل حي عبر COM وظهورٍ مؤكَّد في لوحة
-CAPE-OPEN على كلٍّ من Aspen Plus V14 و DWSIM.
+CAPE-OPEN على كلٍّ من Aspen Plus و DWSIM.
 
 ![لمحة عن v1.0: 25 بلوكًا، 5 عائلات، 369 اختبارًا ناجحًا، مضيفان](docs/media/stats.png)
 
@@ -76,7 +76,7 @@ CAPE-OPEN على كلٍّ من Aspen Plus V14 و DWSIM.
 2. **سجّل** البلوكات (طلب صلاحية مدير واحد): شغّل **OP-Blocks Manager** واضغط
    *Register all*، أو من PowerShell:
    `powershell -ExecutionPolicy Bypass -File scripts\register-all-blocks.ps1`
-3. **افتح محاكيك** ← لوحة النماذج ← تبويب **CAPE-OPEN** (في Aspen Plus V14)، أو
+3. **افتح محاكيك** ← لوحة النماذج ← تبويب **CAPE-OPEN** (في Aspen Plus)، أو
    **Object Palette ← CAPE-OPEN Unit Operation** (في DWSIM) — الـ 25 بلوكًا كلها
    هناك. اسحبها، وصّلها، وشغّل.
 
@@ -138,7 +138,7 @@ DWSIM لترجمته. إن لم يكن لديك DWSIM، ابنِ مشروع ال
 
 ## خارطة الطريق — المرحلة الثانية (مخطَّطة)
 
-يقدّم الإصدار v1.0 خمسةً وعشرين بلوكًا مخصّصًا لـ Aspen Plus V14 و DWSIM. تهدف
+يقدّم الإصدار v1.0 خمسةً وعشرين بلوكًا مخصّصًا لـ Aspen Plus و DWSIM. تهدف
 المرحلة الثانية إلى تحويل OP-Blocks من مكتبة بلوكات إلى **منصّة**. هذا اتجاه، لا
 ميزات منجَزة — لا شيء مما يلي مكتمل بعد.
 
