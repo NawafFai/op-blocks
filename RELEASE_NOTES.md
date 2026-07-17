@@ -7,6 +7,12 @@ This first release delivers a complete, physics-validated block library plus a
 one-click installer, with an honest, evidence-based verification status for
 every block.
 
+> ### 👉 Which file do I download?
+> **Most people: download `OPBlocks_Setup.exe`, run it, done.**
+> Prefer no installer? Download `OPBlocks-1.0.0-portable.zip` instead and run
+> `INSTALL.bat`. *(The "Source code" zip/tar.gz are added automatically by
+> GitHub and are only for developers who want to build from source.)*
+
 ## Highlights
 
 - **25 CAPE-OPEN blocks** across five families — membranes, thermal

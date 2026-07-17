@@ -26,3 +26,7 @@ icons/png/_rasterize.log
 # Claude Code local settings + session artifacts (never publish)
 .claude/
 *.dmp
+
+# Python caches
+__pycache__/
+*.pyc
