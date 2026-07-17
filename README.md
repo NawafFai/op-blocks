@@ -122,4 +122,7 @@ Each block is built against the same gates (full engineering journal:
 
 [MIT](LICENSE) © ONE PROCESS Simulation. "ONE PROCESS" and the OP-Blocks marks
 remain trademarks of ONE PROCESS Simulation — see the trademark notice in the
-LICENSE file. Not affiliated with Aspen Technology, Inc. or the DWSIM project.
+LICENSE file. Third-party components (including the public-domain EPA
+CAPE-OPEN .NET class library) are documented in
+[THIRD-PARTY.md](THIRD-PARTY.md). Not affiliated with Aspen Technology, Inc.
+or the DWSIM project.
