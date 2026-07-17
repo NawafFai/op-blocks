@@ -1,5 +1,23 @@
 # OP-Blocks Changelog
 
+## v1.0.0 — 2026-07-17 (first public release)
+
+- **25 CAPE-OPEN unit operations** across five families (membranes, thermal
+  desalination, electrochemical, lithium & sorption, energy & gas), each with
+  a pure physics engine in Core, published references, a per-block model sheet
+  in `docs/`, and a validation suite — **369 tests, all green**.
+- **OP-RO host-verified** in Aspen Plus V14 (converged IDEAL + ELECNRTL runs,
+  exact mass balance, 20-run determinism, results == stream table). The other
+  24 blocks are physics-validated (unit suites + live COM activation + Aspen
+  palette); their converged in-host runs are the next milestone.
+- Golden-rule compliance throughout: RealParameter-only inputs (six legacy
+  Integer parameters converted), output-parameter Results grids, Model &
+  References block reports, engineering warnings.
+- Tooling: per-user and elevated COM registration scripts, blocks packager,
+  portable-zip + Inno Setup installer pipeline, live-verification tools
+  (COM activation gate, per-user registrar).
+- License: MIT with ONE PROCESS trademark notice.
+
 ## v1.1 (in progress)
 
 ### Priority 1B — Aspen Plus V14 custom icons: proven architectural limitation

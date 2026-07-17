@@ -1,58 +1,125 @@
 # ONE PROCESS Blocks (OP-Blocks)
 
-Custom CAPE-OPEN Unit Operations for **Aspen Plus V14** and **DWSIM**, plus a
-manager app to install/register them. See
-[`ONE_PROCESS_Custom_Blocks_Spec_v1.md`](docs/ONE_PROCESS_Custom_Blocks_Spec_v1.md)
-for the full specification, and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-for the implementation decisions.
+**25 open-source CAPE-OPEN unit operations for water, desalination, lithium and
+green-energy flowsheets — built for Aspen Plus V14.**
 
-## Status — Milestone M0 (de-risk) ✅ code complete
+Every block follows the same engineered pattern: a pure physics engine with
+published references, host-safe CAPE-OPEN wiring, a two-tab Input/Results form,
+and a validation test suite pinned to textbook anchors. **369 unit tests, all
+green** (per-block validation suites + framework tests), plus live
+COM-activation and in-Aspen palette verification.
 
-M0 delivers the shared infrastructure and one skeleton block, so the whole
-plumbing can be proven on real Aspen before any physics work (spec §11).
+> 📷 *Screenshots coming with the release: the CAPE-OPEN palette in Aspen Plus
+> V14 showing all 25 blocks, and a converged OP-RO seawater case.*
+> <!-- TODO(release): add docs/media/palette.png and docs/media/op-ro-run.png -->
 
-| Piece | State |
+---
+
+## Honest status — read this before using
+
+We distinguish two verification tiers and do not blur them:
+
+| Tier | Meaning |
 |---|---|
-| `OPBlocks.Core` — `UnitBase`, `ThermoProxy`, reporting, logging, IPersistStream(Init) | ✅ builds |
-| `OP-MIXER-DEMO` skeleton block | ✅ builds, COM-visible |
-| Unit tests (mixer math §9.1 + persistence roundtrip §8.6) | ✅ 9/9 pass |
-| COM registration (both bitness hives) | scripts ready — run `scripts\register.ps1` (elevates) |
-| Drag-drop in Aspen V14 / DWSIM | manual verification step (needs the elevated registration first) |
+| ✅ **Host-verified** | Ran **converged** inside Aspen Plus V14 with exact mass balance, determinism across 20 runs, and results identical to the stream table. |
+| 🧪 **Physics-validated** | Full unit-test suite green against **published data anchors** on two CAPE-OPEN thermo backends (1.0 + 1.1), activates through real COM, and appears in the live Aspen palette — but a converged in-host run has **not** been executed yet. |
 
-## Build & test
+### Block catalog
+
+| Family | Block | Physics (references in `docs/OP-*_MODEL.md`) | Status |
+|---|---|---|---|
+| Membranes | **OP-RO** Reverse Osmosis | Solution-diffusion, avg-osmotic bisection, ERD, Rating/Design modes | ✅ Host-verified (IDEAL + ELECNRTL) |
+| Membranes | **OP-NF** Nanofiltration | Spiegler–Kedem σ, multivalent selectivity (Kedem 1958; Mohammad 2015) | 🧪 Physics-validated |
+| Membranes | **OP-UF** Ultrafiltration | Darcy flux, size exclusion — salts pass (Cheryan 1998) | 🧪 Physics-validated |
+| Membranes | **OP-FO** Forward Osmosis | Module-avg Δπ + reverse salt flux (Cath 2006; McCutcheon 2006) | 🧪 Physics-validated |
+| Membranes | **OP-PRO** Pressure-Retarded Osmosis | W = A(σΔπ−ΔP)ΔP, exact ΔP* = Δπ/2 optimum (Loeb 1976; Achilli 2010) | 🧪 Physics-validated |
+| Thermal | **OP-MD** Membrane Distillation | DCMD vapour flux, Knudsen-scaled Bm, Antoine Psat (Schofield 1987) | 🧪 Physics-validated |
+| Thermal | **OP-MED** Multi-Effect Distillation | GOR = 0.85·N shortcut, brine CF advisories (El-Dessouky ch. 8) | 🧪 Physics-validated |
+| Thermal | **OP-MSF** Multi-Stage Flash | Once-through y = cpΔT/λ, honest ~9 % recovery, PR ≈ 10 (El-Dessouky ch. 6) | 🧪 Physics-validated |
+| Thermal | **OP-MVC** Mech. Vapour Compression | Isentropic steam work, SEC in the 8–16 kWh/m³ band (El-Dessouky ch. 7) | 🧪 Physics-validated |
+| Thermal | **OP-EVAPPOND** Solar Evaporation Pond | Dalton/aerodynamic + brine activity + solar closure (Penman 1948; Sartori 2000) | 🧪 Physics-validated |
+| Electrochemical | **OP-ED** Electrodialysis | Faraday transport, Ohmic stack, water drag (Strathmann 2004) | 🧪 Physics-validated |
+| Electrochemical | **OP-EDI** Electrodeionization | Faradaic cap + water-splitting regeneration (Ganzi 1987) | 🧪 Physics-validated |
+| Electrochemical | **OP-CDI** Capacitive Deionization | SAC + charge efficiency Λ (Porada 2013; Suss 2015) | 🧪 Physics-validated |
+| Electrochemical | **OP-CHLORALK** Chlor-Alkali Cell | Membrane-cell Faradaics, 2.44 kWh/kg Cl₂ at 3.1 V (O'Brien 2005) | 🧪 Physics-validated |
+| Electrochemical | **OP-IX** Ion Exchange | Equivalents softening, Ca/Mg selectivity (Helfferich 1962) | 🧪 Physics-validated |
+| Lithium & Sorption | **OP-DLE** Direct Lithium Extraction | Langmuir + Glueckauf LDF, Mg/Li selectivity (Langmuir 1918) | 🧪 Physics-validated |
+| Lithium & Sorption | **OP-SX** Solvent Extraction | Kremser cascade — exact 14/15 anchor (Kremser 1930; Seader 3e) | 🧪 Physics-validated |
+| Lithium & Sorption | **OP-GAC** Activated Carbon | Freundlich + carbon usage rate + bed life (MWH ch. 15) | 🧪 Physics-validated |
+| Lithium & Sorption | **OP-CRYST** Crystallizer | Solubility-limited Mullin yield (Mullin 4e; CRC tables) | 🧪 Physics-validated |
+| Lithium & Sorption | **OP-PPT** Chemical Precipitation | Stoichiometric, reagent-limited (Metcalf & Eddy 5e) | 🧪 Physics-validated |
+| Energy & Gas | **OP-PEM** PEM Electrolyzer | Faraday + exact SEC = 26.59·V/η kWh/kg (Carmo 2013) | 🧪 Physics-validated |
+| Energy & Gas | **OP-AEL** Alkaline Electrolyzer | Shared Faradaic engine, alkaline ranges (Ursúa 2012) | 🧪 Physics-validated |
+| Energy & Gas | **OP-FC** PEM Fuel Cell | Faraday + exact η_LHV = V/1.253 (O'Hayre 3e) | 🧪 Physics-validated |
+| Energy & Gas | **OP-RPB** Rotating Packed Bed | HiGee NTU = k·√RPM absorption (Ramshaw 1981; Chen 2005) | 🧪 Physics-validated |
+| Energy & Gas | **OP-UVAOP** UV / Advanced Oxidation | First-order dose-response + Bolton EEO (Bolton 2001) | 🧪 Physics-validated |
+
+Every block, both tiers: named ports, **RealParameter-only** inputs (the one
+type Aspen's CAPE-OPEN grid renders), an output-parameter Results grid,
+engineering warnings, and a "Model & References" section in the block report.
+
+## Install (3 steps)
+
+1. **Download** the latest release (`OPBlocks_Setup.exe`, or
+   `OPBlocks-1.0.0-portable.zip` and extract anywhere).
+2. **Register** the blocks (one UAC prompt): run the **OP-Blocks Manager** and
+   click *Register all*, or from PowerShell:
+   `powershell -ExecutionPolicy Bypass -File scripts\register-all-blocks.ps1`
+3. **Open Aspen Plus V14** → Model Palette → **CAPE-OPEN** tab — all 25 OP
+   blocks are there. Drag, drop, connect, run.
+
+Requirements: Windows 10/11 x64, Aspen Plus V14, .NET Framework 4.8 (in-box on
+Windows). The DWSIM adapter ships in the source tree but is **experimental and
+untested in v1.0** — Aspen Plus is the supported host.
+
+## Build from source
 
 ```powershell
-# .NET 8 SDK required (block DLLs target net48, Manager targets net8)
-scripts\build.ps1              # build Release + run unit tests
+# .NET 8 SDK (block DLLs target net48; Manager targets net8)
+dotnet build tests\UnitTests\UnitTests.csproj -c Release   # builds all block families
+dotnet test  tests\UnitTests\UnitTests.csproj -c Release   # full validation suite
+scripts\package-blocks.ps1                                  # assemble blocks\ runtime layout
+scripts\build-installer.ps1                                 # portable zip (+ Setup.exe if Inno Setup 6 present)
 ```
 
-## Register the blocks (Administrator / UAC)
+Note: `OPBlocks.sln` includes the experimental DWSIM adapter, which needs a
+DWSIM installation to compile — build the test project as shown above for the
+Aspen-facing library.
 
-```powershell
-scripts\register.ps1           # registers every block DLL in x64 + x86 hives
-scripts\unregister.ps1         # removes them
-```
+## How validation works (the "block factory")
 
-After registering, in **Aspen Plus V14**: Model Palette → *Customize / CAPE-OPEN*
-→ category **ONE PROCESS**. In **DWSIM**: Object Palette → CAPE-OPEN Unit
-Operation → ONE PROCESS.
+Each block is built against the same gates (full engineering journal:
+[`HANDOFF.md`](HANDOFF.md)):
 
-## Layout
+1. **Pure engine in `OPBlocks.Core`** — physics only, shared by the block and
+   its tests so they cannot drift; hand-written equations with citations and a
+   validity range (`docs/OP-*_MODEL.md`).
+2. **Structural gate** — block == engine within 0.1 % on canonical cases,
+   replayed through the real CAPE-OPEN interfaces on both Thermo 1.0 and 1.1
+   mock hosts.
+3. **Physical anchors** — closed-form and published-data checks (Faraday to
+   1e-9, Kremser 14/15 exact, steam-table Psat, NaCl solubility, PRO ΔP* = Δπ/2 …).
+4. **Determinism** — 20 consecutive runs bit-stable below 1e-8.
+5. **Results = streams** — the block's Results grid equals the outlet streams
+   exactly; total mass balance to 1e-9.
+6. **Host rules** — RealParameter-only (anything else blanks Aspen's grid),
+   thermo exclusively from the host property package, volumetric flows from
+   package mass ÷ package density (unit-convention safe).
 
-```
-src/OPBlocks.Core/     shared infrastructure (net48)
-src/OPBlocks.Demo/     OP-MIXER-DEMO skeleton block (net48)
-libs/CapeOpen/         vendored CO-LaN CAPE-OPEN .NET class library
-tests/UnitTests/       xUnit tests (net48)
-scripts/               build / register / unregister
-docs/                  spec + architecture + per-block docs
-```
+## Repository layout
 
-## Toolchain
+| Path | Contents |
+|---|---|
+| `src/OPBlocks.Core` | `UnitBase`, `ThermoProxy`, physics engines, reporting, persistence |
+| `src/OPBlocks.{Desalination,Electro,Lithium,Energy}` | The 25 CAPE-OPEN block classes |
+| `src/OPBlocksManager` | WPF installer/registration manager |
+| `tests/UnitTests` | 369 validation tests (per-block suites + framework) |
+| `docs/` | Per-block model sheets (equations + references + anchors), architecture, spec |
+| `scripts/` | build / register / package / installer scripts |
+| `installer/` | Inno Setup script, Aspen palette (`ONE PROCESS.apm`), templates |
 
-- **.NET 8 SDK** (installed) — builds both `net48` block DLLs and the future
-  `net8` Manager. Block DLLs pull .NET Framework reference assemblies from the
-  `Microsoft.NETFramework.ReferenceAssemblies` NuGet package.
-- **.NET Framework 4.8** runtime — required at runtime by the block DLLs
-  (present on Windows 10/11 by default).
-- Registration uses the .NET Framework `RegAsm` (both bitnesses).
+## License
+
+[MIT](LICENSE) © ONE PROCESS Simulation. "ONE PROCESS" and the OP-Blocks marks
+remain trademarks of ONE PROCESS Simulation — see the trademark notice in the
+LICENSE file. Not affiliated with Aspen Technology, Inc. or the DWSIM project.
