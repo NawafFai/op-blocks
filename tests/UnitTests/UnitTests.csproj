@@ -19,6 +19,8 @@
     <ProjectReference Include="..\..\src\OPBlocks.Demo\OPBlocks.Demo.csproj" />
     <ProjectReference Include="..\..\src\OPBlocks.Desalination\OPBlocks.Desalination.csproj" />
     <ProjectReference Include="..\..\src\OPBlocks.Electro\OPBlocks.Electro.csproj" />
+    <ProjectReference Include="..\..\src\OPBlocks.Lithium\OPBlocks.Lithium.csproj" />
+    <ProjectReference Include="..\..\src\OPBlocks.Energy\OPBlocks.Energy.csproj" />
     <Reference Include="CapeOpen">
       <HintPath>..\..\libs\CapeOpen\CapeOpen.dll</HintPath>
     </Reference>
