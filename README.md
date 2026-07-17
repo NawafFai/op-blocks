@@ -5,12 +5,12 @@
 ![version](https://img.shields.io/badge/version-1.0.0-29ABE2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
-![host](https://img.shields.io/badge/host-Aspen%20Plus%20V14-1B3A5C)
+![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20V14%20%7C%20DWSIM-1B3A5C)
 ![tests](https://img.shields.io/badge/tests-369%20passing-brightgreen)
 ![blocks](https://img.shields.io/badge/blocks-25-29ABE2)
 
 **25 open-source CAPE-OPEN unit operations for water, desalination, lithium and
-green-energy flowsheets — built for Aspen Plus V14.**
+green-energy flowsheets — for Aspen Plus V14 and DWSIM.**
 
 ![The 25 ONE PROCESS blocks, grouped by family](docs/media/block-gallery.png)
 
@@ -18,11 +18,9 @@ Every block follows the same engineered pattern: a pure physics engine with
 published references, host-safe CAPE-OPEN wiring, a two-tab Input/Results form,
 and a validation test suite pinned to textbook anchors. **369 unit tests, all
 green** (per-block validation suites + framework tests), plus live
-COM-activation and in-Aspen palette verification.
+COM-activation and CAPE-OPEN palette verification on Aspen Plus V14 and DWSIM.
 
-> 📷 *In-Aspen screenshots to be added at release: the CAPE-OPEN palette in
-> Aspen Plus V14 with all 25 blocks, and a converged OP-RO seawater case.*
-> <!-- TODO(release): add docs/media/palette.png and docs/media/op-ro-run.png -->
+![OP-Blocks v1.0 at a glance: 25 blocks, 5 families, 369 tests passing, 2 hosts](docs/media/stats.png)
 
 ---
 
@@ -76,12 +74,19 @@ engineering warnings, and a "Model & References" section in the block report.
 2. **Register** the blocks (one UAC prompt): run the **OP-Blocks Manager** and
    click *Register all*, or from PowerShell:
    `powershell -ExecutionPolicy Bypass -File scripts\register-all-blocks.ps1`
-3. **Open Aspen Plus V14** → Model Palette → **CAPE-OPEN** tab — all 25 OP
-   blocks are there. Drag, drop, connect, run.
+3. **Open your simulator** → Model Palette → **CAPE-OPEN** tab (Aspen Plus V14),
+   or **Object Palette → CAPE-OPEN Unit Operation** (DWSIM) — all 25 OP blocks
+   are there. Drag, drop, connect, run.
 
-Requirements: Windows 10/11 x64, Aspen Plus V14, .NET Framework 4.8 (in-box on
-Windows). The DWSIM adapter ships in the source tree but is **experimental and
-untested in v1.0** — Aspen Plus is the supported host.
+Requirements: Windows 10/11 x64, .NET Framework 4.8 (in-box on Windows), and
+either **Aspen Plus V14** or **DWSIM**. Both are supported CAPE-OPEN hosts: the
+blocks resolve the host thermo automatically (Thermo 1.1 on Aspen, Thermo 1.0
+on DWSIM), so the same block runs on both.
+
+The **OP-Blocks Manager** detects your simulators and installs the whole library
+in one click:
+
+![The OP-Blocks Manager: detected simulators and the one-click block library](docs/media/manager.png)
 
 ## Build from source
 
@@ -93,14 +98,13 @@ scripts\package-blocks.ps1                                  # assemble blocks\ r
 scripts\build-installer.ps1                                 # portable zip (+ Setup.exe if Inno Setup 6 present)
 ```
 
-Note: `OPBlocks.sln` includes the experimental DWSIM adapter, which needs a
-DWSIM installation to compile — build the test project as shown above for the
-Aspen-facing library.
+Note: `OPBlocks.sln` also includes the DWSIM adapter project, which needs a
+DWSIM installation present to compile. If you don't have DWSIM, build the test
+project as shown above — it produces the full block library for Aspen.
 
 ## How validation works (the "block factory")
 
-Each block is built against the same gates (full engineering journal:
-[`HANDOFF.md`](HANDOFF.md)):
+Each block is built against the same six gates:
 
 1. **Pure engine in `OPBlocks.Core`** — physics only, shared by the block and
    its tests so they cannot drift; hand-written equations with citations and a
@@ -131,9 +135,9 @@ Each block is built against the same gates (full engineering journal:
 
 ## Roadmap — Phase 2 (planned)
 
-v1.0 delivers 25 custom CAPE-OPEN blocks for Aspen Plus V14. Phase 2 aims to
-grow OP-Blocks from a block library into a **platform**. This is a direction,
-not a shipped feature set — nothing below is done yet.
+v1.0 delivers 25 custom CAPE-OPEN blocks for Aspen Plus V14 and DWSIM. Phase 2
+aims to grow OP-Blocks from a block library into a **platform**. This is a
+direction, not a shipped feature set — nothing below is done yet.
 
 **1. Aspen HYSYS support** — the same physics core exposed through the HYSYS
 Extension mechanism, so every block can run across all three major simulators
