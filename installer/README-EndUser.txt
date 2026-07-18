@@ -23,7 +23,7 @@ INSTALL - pick ONE of the two ways you received it:
         It registers all 25 blocks (x64 + x86) automatically.
      2. Open "ONE PROCESS Blocks Manager" from the Start menu.
 
-  B) Portable ZIP  (OPBlocks-1.1.0-portable.zip)
+  B) Portable ZIP  (OPBlocks-1.1.1-portable.zip)
      1. Right-click the ZIP > Properties > tick "Unblock" > OK
         (this clears Windows' "downloaded file" mark - important).
      2. Extract the ZIP anywhere (e.g. your Desktop).

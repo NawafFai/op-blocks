@@ -66,5 +66,50 @@ namespace OPBlocks.UnitTests
             Pi(0.97, notes: notes);
             Assert.Contains(notes, n => n.Contains("ideal solution"));
         }
+
+        // ---- package water-activity route (γw) ---------------------------------
+        //
+        // A dissolved salt ALWAYS lowers water activity (a_w = γw·xw < xw ⟹ γw < 1).
+        // Only γw < 1 carries real electrolyte information; γw ≥ 1 (an ideal or a
+        // molecular-salt package such as NRTL/UNIQUAC) does NOT model the salt's
+        // osmotic effect and must fall back to van 't Hoff — never report ~0 bar for
+        // a clearly saline feed (the DWSIM + NRTL defect: feed osmotic pressure = 0).
+
+        private static double PiWithGamma(double xw, double gammaWater, List<string> notes = null)
+        {
+            var ids = new[] { "Water", "NaCl" };
+            var mw = new[] { 18.015, 58.44 };
+            var flows = new[] { xw, 1.0 - xw };
+            var mock = new MockMaterialObject(ids, mw, 1000.0, flows,
+                activityCoefficients: new[] { gammaWater, 1.0 });
+            var proxy = new OPBlocks.Core.ThermoProxy(mock, "Feed");
+            return ProcessOps.OsmoticPressureBar(proxy, flows, 0, 2.0, 298.15, notes);
+        }
+
+        [Fact]
+        public void GammaAboveOne_FallsBackToVantHoff_NotZero()
+        {
+            // NRTL-with-molecular-NaCl returns γw slightly > 1 → the old code clamped
+            // a_w to 1 and reported π = 0 for a 1%-salt feed. It must now match the
+            // van 't Hoff estimate (~28 bar) and say it fell back.
+            var notes = new List<string>();
+            double pi = PiWithGamma(0.99, 1.05, notes);
+            Assert.InRange(pi, 20.0, 35.0);
+            Assert.Equal(Pi(0.99), pi, 6); // identical to the van 't Hoff route
+            Assert.Contains(notes, n => n.Contains("ideal solution"));
+        }
+
+        [Fact]
+        public void GammaBelowOne_UsesPackageActivity()
+        {
+            // A real electrolyte package (γw < 1, e.g. ELECNRTL ≈ 0.99) is trusted:
+            // π = −(RT/V̄w)·ln(γw·xw), which differs from the plain van 't Hoff value,
+            // and no fallback warning is emitted.
+            var notes = new List<string>();
+            double pi = PiWithGamma(0.99, 0.98, notes);
+            Assert.True(pi > 0.0);
+            Assert.NotEqual(Pi(0.99), pi, 3);
+            Assert.DoesNotContain(notes, n => n.Contains("ideal solution"));
+        }
     }
 }

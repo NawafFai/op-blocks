@@ -2,7 +2,7 @@
 ; Built by scripts\build-installer.ps1 (stages files into build\stage\app first).
 
 #define AppName "ONE PROCESS Blocks"
-#define AppVersion "1.1.0"
+#define AppVersion "1.1.1"
 #define Publisher "ONE PROCESS Simulation"
 #define ExeName "OPBlocksManager.exe"
 

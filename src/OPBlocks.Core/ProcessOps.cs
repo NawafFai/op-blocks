@@ -155,15 +155,21 @@ namespace OPBlocks.Core
 
             double rtOverVw = GasConstant * Math.Max(tempK, 1.0) / WaterMolarVolume; // Pa
 
-            // A water activity coefficient of exactly 1 means the package treats the
-            // solution as ideal (e.g. IDEAL with a molecular salt) — it carries no
-            // electrolyte information, and -ln(xw) alone misses dissociation by the
-            // factor i. Only a package that actually models the solution (γw ≠ 1,
-            // e.g. ELECNRTL apparent-component water activity) overrides van 't Hoff.
+            // The package water activity is only trusted when it actually models the
+            // salt's osmotic effect. A dissolved salt ALWAYS lowers water activity
+            // (a_w = γw·xw < xw, i.e. γw < 1) — so only γw < 1 carries real
+            // electrolyte information (e.g. ELECNRTL apparent-component water activity,
+            // γw ≈ 0.99 for seawater). γw = 1 is an ideal package (no electrolyte
+            // info); γw > 1 means the package treats the salt as a neutral molecule
+            // that RAISES water activity (e.g. NRTL/UNIQUAC with a molecular NaCl) —
+            // physically wrong for an electrolyte, and it would clamp a_w to 1 and
+            // report π = 0 for a clearly saline feed. In both of those cases we fall
+            // back to the ideal-solution van 't Hoff estimate (correct in the dilute
+            // limit) and say so.
             double piPa;
             double gammaW = 1.0;
             bool haveGamma = stream != null && stream.TryGetLiquidActivityCoefficient(waterIndex, out gammaW);
-            if (haveGamma && Math.Abs(gammaW - 1.0) > 1e-6)
+            if (haveGamma && gammaW < 1.0 - 1e-6)
             {
                 double aw = Clamp(gammaW * xw, 1e-12, 1.0);
                 piPa = -rtOverVw * Math.Log(aw);
@@ -173,8 +179,9 @@ namespace OPBlocks.Core
                 piPa = -vantHoffI * rtOverVw * Math.Log(xw);
                 if (warnings != null) warnings.Add(haveGamma
                     ? "Osmotic pressure estimated from ideal solution × van 't Hoff factor " +
-                      "(the selected property package reports an ideal water activity, γw = 1). " +
-                      "For brines, an electrolyte-capable package gives more accurate results."
+                      "(the selected property package reports a water activity coefficient >= 1, " +
+                      "so it does not capture the salt's osmotic effect — a dissolved salt lowers " +
+                      "water activity). For brines, an electrolyte-capable package gives more accurate results."
                     : "Osmotic pressure estimated from ideal solution × van 't Hoff factor " +
                       "(the selected property package did not supply a water activity). " +
                       "For brines, an electrolyte-capable package gives more accurate results.");

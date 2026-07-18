@@ -18,6 +18,29 @@
   (COM activation gate, per-user registrar).
 - License: MIT with ONE PROCESS trademark notice.
 
+## v1.1.1 — 2026-07-19
+
+### Fix — osmotic pressure with molecular-salt property packages (DWSIM)
+
+- **Osmotic blocks (OP-RO / OP-NF / OP-FO / OP-PRO)** reported a **feed osmotic
+  pressure of 0 bar** for a clearly saline feed when the flowsheet used a
+  general (non-electrolyte) property package such as **NRTL / UNIQUAC** — packages
+  that treat NaCl as a neutral molecule and return a water activity coefficient
+  γw ≥ 1. The block took that at face value, clamped the water activity to 1, and
+  got ln(1) = 0.
+- Root cause / fix (`ProcessOps.OsmoticPressureBar`): a dissolved salt ALWAYS
+  lowers water activity (a_w = γw·xw < xw ⟹ γw < 1), so the package activity is
+  now trusted **only when γw < 1** (real electrolyte behaviour, e.g. ELECNRTL
+  ≈ 0.99). For γw ≥ 1 the block falls back to the ideal-solution van 't Hoff
+  estimate and states the assumption — no more 0 bar.
+- Unchanged and re-verified: Aspen IDEAL (γw = 1 → van 't Hoff) and Aspen
+  ELECNRTL (γw < 1 → package activity) behave exactly as in the host-verified
+  runs. Unit suite **371/371** (two new regression tests pin the γw ≥ 1 and
+  γw < 1 routes).
+- Guidance: for electrolyte feeds in DWSIM use a native aqueous package (or an
+  ideal one so van 't Hoff engages); **Steam Tables** supports pure water only,
+  and **Reaktoro** requires a configured Python distribution.
+
 ## v1.1.0 — 2026-07-18
 
 ### OP-Blocks Manager — professional redesign + one-click DWSIM

@@ -31,9 +31,14 @@ namespace OPBlocks.UnitTests
         public double PressurePa;
         public int FlashCount { get; set; }   // CalcEquilibrium calls observed
 
+        // Optional per-component liquid activity coefficients. Null (default) means
+        // the package supplies none — the block must use the van 't Hoff fallback.
+        // A non-null value lets a test exercise the package-activity osmotic route.
+        public double[] ActivityCoefficients { get; set; }
+
         public MockMaterialObject(string[] ids, double[] mwGmol, double densityKgM3 = 1000.0,
                                   double[] flows = null, double temperatureK = 298.15,
-                                  double pressurePa = 101325.0)
+                                  double pressurePa = 101325.0, double[] activityCoefficients = null)
         {
             _ids = ids;
             _mwGmol = mwGmol;
@@ -41,6 +46,7 @@ namespace OPBlocks.UnitTests
             Flows = flows;
             TemperatureK = temperatureK;
             PressurePa = pressurePa;
+            ActivityCoefficients = activityCoefficients;
         }
 
         public object ComponentIds { get { return (string[])_ids.Clone(); } }
@@ -73,9 +79,15 @@ namespace OPBlocks.UnitTests
                     if (string.Equals(basis, "Mass", StringComparison.OrdinalIgnoreCase))
                         return new[] { _densityKgM3 };
                     throw new NotSupportedException("mock: only mass density is supplied");
+                case "activitycoefficient":
+                    // Supplied only when a test opts in; otherwise fall through to the
+                    // throw so the block uses the van 't Hoff fallback, like a package
+                    // that cannot help.
+                    if (ActivityCoefficients != null) return (double[])ActivityCoefficients.Clone();
+                    throw new NotSupportedException("mock: property 'activityCoefficient' not supplied");
                 default:
-                    // activityCoefficient lands here on purpose: the block must fall
-                    // back to the van 't Hoff branch, like a package that cannot help.
+                    // Unknown properties: the block must fall back gracefully, like a
+                    // package that cannot help.
                     throw new NotSupportedException("mock: property '" + property + "' not supplied");
             }
         }
