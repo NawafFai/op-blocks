@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:OPBlocksManager"
         xmlns:svgc="http://sharpvectors.codeplex.com/svgc/"
-        Title="ONE PROCESS Blocks — Manager" Height="700" Width="980"
-        MinHeight="580" MinWidth="840"
+        Title="ONE PROCESS Blocks — Manager" Height="740" Width="1000"
+        MinHeight="600" MinWidth="860"
         Icon="OPBlocksManager.ico"
         WindowStartupLocation="CenterScreen"
-        FontFamily="Segoe UI" Background="White"
+        FontFamily="Segoe UI" Background="{StaticResource WindowBg}"
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType"
         FlowDirection="{Binding L.FlowDir}">
 
     <Window.DataContext>
@@ -15,8 +16,15 @@
     </Window.DataContext>
 
     <DockPanel>
-        <!-- Header -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource BrandAccent}" Padding="20,12">
+
+        <!-- ============================ Header ============================ -->
+        <Border DockPanel.Dock="Top" Padding="24,16">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1B3A5C" Offset="0"/>
+                    <GradientStop Color="#22496F" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -25,112 +33,168 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Logo hexagon -->
-                <Grid Grid.Column="0" Width="46" Height="46" VerticalAlignment="Center">
-                    <Polygon Stroke="White" StrokeThickness="2" Fill="Transparent" Stretch="Uniform"
-                             Points="0.866,0.5 0,1 -0.866,0.5 -0.866,-0.5 0,-1 0.866,-0.5"/>
+                <Grid Grid.Column="0" Width="48" Height="48" VerticalAlignment="Center">
+                    <Ellipse Fill="#14FFFFFF"/>
+                    <Polygon Stroke="{StaticResource BrandBlue}" StrokeThickness="2.5" Fill="#1F29ABE2" Stretch="Uniform"
+                             Margin="7" Points="0.866,0.5 0,1 -0.866,0.5 -0.866,-0.5 0,-1 0.866,-0.5"/>
                     <TextBlock Text="OP" Foreground="White" FontWeight="Bold" FontSize="13"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                    <TextBlock Text="{Binding L[AppTitle]}" Foreground="White" FontSize="21" FontWeight="Bold"/>
-                    <TextBlock Text="{Binding L[AppSubtitle]}" Foreground="#DCEFEA" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,12,0">
+                    <TextBlock Text="{Binding L[AppTitle]}" Foreground="White" FontSize="22" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding L[AppSubtitle]}" Foreground="#B9CBDD" FontSize="11.5"
+                               Margin="0,3,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="{Binding L[EnableAspen]}" Command="{Binding EnableAspenCommand}"
-                            Background="White" Foreground="{StaticResource BrandAccent}"
-                            Style="{StaticResource AccentButton}" Margin="0,0,8,0"/>
+                            Style="{StaticResource HeaderPrimaryButton}" Margin="0,0,8,0"/>
+                    <Button Content="{Binding DwsimButtonText}" Command="{Binding EnableDwsimCommand}"
+                            Style="{StaticResource HeaderPrimaryButton}" Margin="0,0,16,0"/>
                     <Button Content="{Binding L.LangButtonText}" Command="{Binding ToggleLanguageCommand}"
-                            Style="{StaticResource GhostButton}" Margin="0,0,8,0"/>
+                            Style="{StaticResource HeaderGhostButton}" Margin="0,0,8,0"/>
                     <Button Content="{Binding L[About]}" Command="{Binding AboutCommand}"
-                            Style="{StaticResource GhostButton}"/>
+                            Style="{StaticResource HeaderGhostButton}"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Status bar -->
-        <Border DockPanel.Dock="Bottom" Background="{StaticResource PanelBg}" Padding="16,6" BorderBrush="{StaticResource CardBorder}" BorderThickness="0,1,0,0">
-            <TextBlock Text="{Binding Status}" Foreground="#41504C" FontSize="12"/>
+        <!-- ============================ Status bar ============================ -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource CardBg}" Padding="24,8"
+                BorderBrush="{StaticResource CardBorder}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="8" Height="8" Fill="{StaticResource BrandBlue}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextSecondary}" FontSize="12"
+                           Margin="8,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
         </Border>
 
-        <Grid Margin="16">
+        <!-- ============================ Body ============================ -->
+        <Grid Margin="24,20,24,16">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="140"/>
+                <RowDefinition Height="Auto"/>   <!-- detected heading -->
+                <RowDefinition Height="Auto"/>   <!-- simulator cards -->
+                <RowDefinition Height="Auto"/>   <!-- library toolbar -->
+                <RowDefinition Height="*"/>      <!-- library list -->
+                <RowDefinition Height="Auto"/>   <!-- log heading -->
+                <RowDefinition Height="150"/>    <!-- log console -->
             </Grid.RowDefinitions>
 
-            <!-- Detect -->
+            <!-- Detected simulators -->
             <DockPanel Grid.Row="0">
-                <TextBlock Text="{Binding L[DetectedTitle]}" FontSize="15" FontWeight="SemiBold" Foreground="#2C3835"/>
-                <Button Content="{Binding L[Refresh]}" Command="{Binding RefreshCommand}" Style="{StaticResource GhostButton}"
+                <TextBlock Text="{Binding L[DetectedTitle]}" Style="{StaticResource SectionHeading}"/>
+                <Button Content="{Binding L[Refresh]}" Command="{Binding RefreshCommand}"
+                        Style="{StaticResource SecondaryButton}" Padding="12,5"
                         HorizontalAlignment="Right" DockPanel.Dock="Right"/>
             </DockPanel>
 
-            <ItemsControl Grid.Row="1" ItemsSource="{Binding Simulators}" Margin="0,8,0,14">
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding Simulators}" Margin="0,10,0,18">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                                CornerRadius="6" Padding="12,8" Margin="0,0,10,10" MinWidth="260">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#22302C"/>
-                                    <Border Background="#E1EAE7" CornerRadius="3" Padding="5,1" Margin="8,0,0,0">
-                                        <TextBlock Text="{Binding Bitness}" FontSize="10" Foreground="#3B4A46"/>
-                                    </Border>
+                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,12,12" MinWidth="270">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- accent rail -->
+                                <Border Grid.Column="0" Width="4" Background="{StaticResource BrandBlue}"
+                                        CornerRadius="10,0,0,10"/>
+                                <StackPanel Grid.Column="1" Margin="14,10,14,11">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5"
+                                                   Foreground="{StaticResource TextPrimary}"/>
+                                        <Border Style="{StaticResource Chip}" Margin="8,0,0,0"
+                                                Background="{StaticResource BrandBlueTint}">
+                                            <TextBlock Text="{Binding Bitness}" FontSize="10"
+                                                       Foreground="{StaticResource BrandNavy}"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Version}" FontSize="11.5"
+                                               Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0"/>
+                                    <TextBlock Text="{Binding Path}" FontSize="10"
+                                               Foreground="{StaticResource TextMuted}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
                                 </StackPanel>
-                                <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#5B6A66" Margin="0,2,0,0"/>
-                                <TextBlock Text="{Binding Path}" FontSize="10" Foreground="#8A968F" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-                            </StackPanel>
+                            </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <TextBlock Text="{Binding L[LibraryTitle]}" FontSize="15" FontWeight="SemiBold" Foreground="#2C3835" Margin="0,0,0,8"/>
+            <!-- Library toolbar: heading + subtitle, count chip, bulk actions -->
+            <Grid Grid.Row="2" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding L[LibraryTitle]}" Style="{StaticResource SectionHeading}"/>
+                        <Border Style="{StaticResource Chip}" Margin="10,1,0,0" VerticalAlignment="Center"
+                                Background="{StaticResource PanelBg}">
+                            <TextBlock Text="{Binding Blocks.Count}" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondary}"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding L[LibrarySubtitle]}" FontSize="11.5"
+                               Foreground="{StaticResource TextMuted}" Margin="0,3,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="{Binding L[InstallAll]}" Command="{Binding InstallAllCommand}"
+                            Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"/>
+                    <Button Content="{Binding L[RemoveAll]}" Command="{Binding RemoveAllCommand}"
+                            Style="{StaticResource DangerButton}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Library list -->
+            <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,6,10">
                     <ItemsControl ItemsSource="{Binding Blocks}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{StaticResource CardBorder}" BorderThickness="1" CornerRadius="8"
-                                        Padding="16,12" Margin="0,0,0,10" Background="White">
+                                <Border BorderBrush="{StaticResource Divider}" BorderThickness="0,0,0,1"
+                                        Padding="10,12" Margin="4,0,4,0" Background="Transparent">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="56"/>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Grid.Column="0" Width="46" Height="46" CornerRadius="8"
-                                                Background="#E6F1EE" VerticalAlignment="Top" Padding="6">
+                                        <!-- icon tile -->
+                                        <Border Grid.Column="0" Width="46" Height="46" CornerRadius="10"
+                                                Background="{StaticResource BrandBlueTint}" VerticalAlignment="Top" Padding="7">
                                             <Grid>
-                                                <TextBlock Text="⬡" FontSize="24" Foreground="{StaticResource BrandAccent}"
+                                                <TextBlock Text="⬡" FontSize="24" Foreground="{StaticResource BrandBlue}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 <svgc:SvgViewbox Source="{Binding IconUri}"/>
                                             </Grid>
                                         </Border>
 
-                                        <StackPanel Grid.Column="1" Margin="12,0,12,0">
+                                        <StackPanel Grid.Column="1" Margin="14,0,14,0" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#22302C"/>
-                                                <Border Background="#EEF2F1" CornerRadius="3" Padding="6,1" Margin="8,1,0,0">
-                                                    <TextBlock Text="{Binding Code}" FontSize="10" Foreground="#55635F" FontFamily="Consolas"/>
+                                                <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimary}"/>
+                                                <Border Style="{StaticResource Chip}" Margin="8,1,0,0">
+                                                    <TextBlock Text="{Binding Code}" FontSize="10"
+                                                               Foreground="{StaticResource TextSecondary}" FontFamily="Consolas"/>
                                                 </Border>
-                                                <Border Background="{StaticResource BrandAccent}" CornerRadius="3" Padding="6,1" Margin="6,1,0,0"
+                                                <Border Style="{StaticResource Chip}" Margin="6,1,0,0"
+                                                        Background="{StaticResource BrandNavy}"
                                                         Visibility="{Binding Milestone, Converter={x:Static local:EmptyToCollapsedConverter.Instance}}">
                                                     <TextBlock Text="{Binding Milestone}" FontSize="10" Foreground="White"/>
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#5B6A66"
+                                            <TextBlock Text="{Binding Description}" FontSize="12"
+                                                       Foreground="{StaticResource TextSecondary}"
                                                        TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
                                                 <Ellipse Width="9" Height="9" Fill="{Binding StatusBrush}" VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"
                                                            FontSize="12" FontWeight="SemiBold" Margin="6,0,0,0" VerticalAlignment="Center"/>
@@ -139,10 +203,10 @@
 
                                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                             <Button Content="{Binding DataContext.L[Install], RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    Style="{StaticResource AccentButton}" Width="104"
+                                                    Style="{StaticResource PrimaryButton}" Width="110"
                                                     Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}"/>
                                             <Button Content="{Binding DataContext.L[Remove], RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    Style="{StaticResource GhostButton}" Width="104" Margin="0,6,0,0"
+                                                    Style="{StaticResource DangerButton}" Width="110" Margin="0,7,0,0"
                                                     Command="{Binding RemoveCommand}" IsEnabled="{Binding CanRemove}"/>
                                         </StackPanel>
                                     </Grid>
@@ -150,14 +214,24 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </StackPanel>
-            </ScrollViewer>
+                </ScrollViewer>
+            </Border>
 
-            <TextBlock Grid.Row="3" Text="{Binding L[ActivityLog]}" FontSize="13" FontWeight="SemiBold" Foreground="#2C3835" Margin="0,10,0,4"/>
-            <Border Grid.Row="4" BorderBrush="{StaticResource CardBorder}" BorderThickness="1" CornerRadius="6" Background="#1E2624">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,6">
-                    <TextBox Text="{Binding Log, Mode=OneWay}" IsReadOnly="True" Background="Transparent" Foreground="#CFE3DC"
-                             BorderThickness="0" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"
+            <!-- Activity log heading -->
+            <DockPanel Grid.Row="4" Margin="0,14,0,6">
+                <TextBlock Text="{Binding L[ActivityLog]}" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimary}"/>
+                <Button Content="{Binding L[ClearLog]}" Command="{Binding ClearLogCommand}"
+                        Style="{StaticResource SecondaryButton}" Padding="10,3" FontSize="11"
+                        HorizontalAlignment="Right" DockPanel.Dock="Right"/>
+            </DockPanel>
+
+            <!-- Log console -->
+            <Border Grid.Row="5" CornerRadius="10" Background="{StaticResource ConsoleBg}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,10">
+                    <TextBox Text="{Binding Log, Mode=OneWay}" IsReadOnly="True" Background="Transparent"
+                             Foreground="{StaticResource ConsoleText}" BorderThickness="0"
+                             FontFamily="Consolas" FontSize="11.5" TextWrapping="Wrap"
                              FlowDirection="LeftToRight"/>
                 </ScrollViewer>
             </Border>

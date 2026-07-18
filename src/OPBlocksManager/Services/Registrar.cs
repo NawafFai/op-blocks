@@ -20,10 +20,18 @@ namespace OPBlocksManager.Services
             public string Log;
         }
 
-        public Outcome Install(BlockManifest manifest) => Run(manifest, RegistrationWorker.CmdRegister);
-        public Outcome Remove(BlockManifest manifest) => Run(manifest, RegistrationWorker.CmdUnregister);
+        public Outcome Install(BlockManifest manifest) => Run(
+            $"{RegistrationWorker.CmdRegister} {RegistrationWorker.ArgManifest} \"{manifest.ManifestPath}\"");
+        public Outcome Remove(BlockManifest manifest) => Run(
+            $"{RegistrationWorker.CmdUnregister} {RegistrationWorker.ArgManifest} \"{manifest.ManifestPath}\"");
 
-        private Outcome Run(BlockManifest manifest, string command)
+        /// <summary>Register EVERY family in the block library in ONE elevated step (one UAC prompt).</summary>
+        public Outcome InstallAll(string blocksDirectory) => Run(
+            $"{RegistrationWorker.CmdRegisterAll} {RegistrationWorker.ArgBlocksDir} \"{blocksDirectory}\"");
+        public Outcome RemoveAll(string blocksDirectory) => Run(
+            $"{RegistrationWorker.CmdUnregisterAll} {RegistrationWorker.ArgBlocksDir} \"{blocksDirectory}\"");
+
+        private Outcome Run(string commandArgs)
         {
             string resultFile = Path.Combine(Path.GetTempPath(), "opblocks-reg-" + Guid.NewGuid().ToString("N") + ".json");
             string exe = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule.FileName;
@@ -33,9 +41,7 @@ namespace OPBlocksManager.Services
                 FileName = exe,
                 UseShellExecute = true,
                 Verb = "runas", // triggers the UAC elevation prompt
-                Arguments =
-                    $"{command} {RegistrationWorker.ArgManifest} \"{manifest.ManifestPath}\" " +
-                    $"{RegistrationWorker.ArgResult} \"{resultFile}\""
+                Arguments = $"{commandArgs} {RegistrationWorker.ArgResult} \"{resultFile}\""
             };
 
             try

@@ -21,11 +21,16 @@ namespace OPBlocksManager
         public ObservableCollection<BlockRowViewModel> Blocks { get; } = new ObservableCollection<BlockRowViewModel>();
 
         private readonly AspenTemplateInstaller _aspenTemplate = new AspenTemplateInstaller();
+        private readonly DwsimAdapterInstaller _dwsim = new DwsimAdapterInstaller();
 
         public ICommand RefreshCommand { get; }
         public ICommand ToggleLanguageCommand { get; }
         public ICommand AboutCommand { get; }
         public ICommand EnableAspenCommand { get; }
+        public ICommand EnableDwsimCommand { get; }
+        public ICommand InstallAllCommand { get; }
+        public ICommand RemoveAllCommand { get; }
+        public ICommand ClearLogCommand { get; }
 
         public string AppVersion
         {
@@ -45,12 +50,30 @@ namespace OPBlocksManager
         private string _status;
         public string Status { get => _status; private set => Set(ref _status, value); }
 
+        // While a bulk (Install all / Remove all) elevation is in flight the whole
+        // library is locked so the per-row and bulk buttons can't overlap it.
+        private bool _bulkBusy;
+        public bool BulkBusy
+        {
+            get => _bulkBusy;
+            private set { if (Set(ref _bulkBusy, value)) { Raise(nameof(CanBulk)); foreach (var r in Blocks) r.RaiseLocalized(); } }
+        }
+        public bool CanBulk => !_bulkBusy && Blocks.Count > 0;
+
+        private bool _dwsimInstalled;
+        public bool DwsimInstalled { get => _dwsimInstalled; private set { if (Set(ref _dwsimInstalled, value)) Raise(nameof(DwsimButtonText)); } }
+        public string DwsimButtonText => L[_dwsimInstalled ? "DisableDwsim" : "EnableDwsim"];
+
         public MainViewModel()
         {
             RefreshCommand = new RelayCommand(_ => Refresh());
             ToggleLanguageCommand = new RelayCommand(_ => ToggleLanguage());
             AboutCommand = new RelayCommand(_ => ShowAbout());
             EnableAspenCommand = new RelayCommand(_ => EnableAspen());
+            EnableDwsimCommand = new RelayCommand(_ => ToggleDwsim());
+            InstallAllCommand = new RelayCommand(_ => InstallAll(), _ => CanBulk);
+            RemoveAllCommand = new RelayCommand(_ => RemoveAll(), _ => CanBulk);
+            ClearLogCommand = new RelayCommand(_ => Log = "");
             _status = L["StatusReady"];
             Refresh();
         }
@@ -60,6 +83,7 @@ namespace OPBlocksManager
             L.Toggle();
             // Localized, per-row status text needs to re-read.
             foreach (var row in Blocks) row.RaiseLocalized();
+            Raise(nameof(DwsimButtonText));
             Status = L["StatusReady"];
         }
 
@@ -79,6 +103,61 @@ namespace OPBlocksManager
                 MessageBoxButton.OK, r.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
 
+        /// <summary>Install the native DWSIM adapter, or remove it if already enabled.</summary>
+        private void ToggleDwsim()
+        {
+            bool removing = _dwsim.IsInstalled();
+            DwsimAdapterInstaller.Result r = removing ? _dwsim.Remove() : _dwsim.Install();
+            AppendLog((removing ? "Disable in DWSIM: " : "Enable in DWSIM: ") + r.Message);
+            Status = r.Success
+                ? (removing ? "Native DWSIM blocks removed." : "Native DWSIM blocks enabled.")
+                : (removing ? "Disable in DWSIM failed — see log." : "Enable in DWSIM failed — see log.");
+            System.Windows.MessageBox.Show(r.Message,
+                r.Success ? L["DwsimReadyTitle"] : L["DwsimTitle"],
+                MessageBoxButton.OK, r.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            DwsimInstalled = _dwsim.IsInstalled();
+        }
+
+        private async void InstallAll()
+        {
+            if (Blocks.Count == 0) return;
+            BulkBusy = true;
+            Status = "Installing all blocks (approve the UAC prompt)…";
+            var outcome = await Task.Run(() => _registrar.InstallAll(BlocksDirectory));
+            BulkBusy = false;
+            HandleBulkOutcome("Install all", outcome);
+        }
+
+        private async void RemoveAll()
+        {
+            if (Blocks.Count == 0) return;
+            var confirm = System.Windows.MessageBox.Show(L["RemoveAllPrompt"], L["RemoveAllTitle"],
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            BulkBusy = true;
+            Status = "Removing all blocks (approve the UAC prompt)…";
+            var outcome = await Task.Run(() => _registrar.RemoveAll(BlocksDirectory));
+            BulkBusy = false;
+            HandleBulkOutcome("Remove all", outcome);
+        }
+
+        private void HandleBulkOutcome(string action, Registrar.Outcome outcome)
+        {
+            if (outcome.Cancelled)
+            {
+                AppendLog($"{action}: cancelled at the UAC prompt.");
+                Status = "Cancelled.";
+            }
+            else
+            {
+                AppendLog($"{action}: {(outcome.Success ? "OK" : "FAILED")}");
+                if (!string.IsNullOrWhiteSpace(outcome.Log)) AppendLog(outcome.Log.TrimEnd());
+                Status = outcome.Success ? $"{action} complete." : $"{action} failed — see log.";
+            }
+            foreach (var row in Blocks) row.RefreshState(_scanner);
+        }
+
         public void Refresh()
         {
             Simulators.Clear();
@@ -94,6 +173,9 @@ namespace OPBlocksManager
                     Blocks.Add(new BlockRowViewModel(this, m, def));
 
             foreach (var row in Blocks) row.RefreshState(_scanner);
+
+            DwsimInstalled = _dwsim.IsInstalled();
+            Raise(nameof(CanBulk));
 
             Status = $"{Blocks.Count} block(s) · {CountFound()} host(s) detected.";
             AppendLog($"Refreshed: {Blocks.Count} block(s), library at {BlocksDirectory}");
@@ -200,8 +282,8 @@ namespace OPBlocksManager
         }
 
         public bool IsInstalled => State != RegistrationState.None;
-        public bool CanInstall => !Busy && State != RegistrationState.Both && !DllMissing;
-        public bool CanRemove => !Busy && State != RegistrationState.None;
+        public bool CanInstall => !Busy && !_parent.BulkBusy && State != RegistrationState.Both && !DllMissing;
+        public bool CanRemove => !Busy && !_parent.BulkBusy && State != RegistrationState.None;
 
         /// <summary>Re-raise the localized / state-dependent bindings.</summary>
         public void RaiseLocalized()
@@ -235,7 +317,7 @@ namespace OPBlocksManager
                 if (DllMissing) return Brushes.OrangeRed;
                 switch (State)
                 {
-                    case RegistrationState.Both: return new SolidColorBrush(Color.FromRgb(0x0E, 0x7C, 0x66));
+                    case RegistrationState.Both: return new SolidColorBrush(Color.FromRgb(0x1E, 0x9E, 0x6A));
                     case RegistrationState.Partial: return Brushes.DarkOrange;
                     default: return Brushes.Gray;
                 }

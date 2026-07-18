@@ -12,7 +12,8 @@ namespace OPBlocksManager
     /// </summary>
     public sealed class AboutWindow : Window
     {
-        private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(0x0E, 0x7C, 0x66));
+        private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(0x1B, 0x3A, 0x5C));
+        private static readonly Brush AccentBlue = new SolidColorBrush(Color.FromRgb(0x29, 0xAB, 0xE2));
 
         public AboutWindow(Localizer l, string version)
         {
@@ -62,7 +63,7 @@ namespace OPBlocksManager
             // Body
             var body = new StackPanel { Margin = new Thickness(24, 20, 24, 12) };
             body.Children.Add(Row(l["AboutMadeBy"], 15, FontWeights.SemiBold, Color.FromRgb(0x22, 0x30, 0x2C)));
-            body.Children.Add(Row(l["AboutOrg"], 13, FontWeights.Normal, Color.FromRgb(0x0E, 0x7C, 0x66)));
+            body.Children.Add(Row(l["AboutOrg"], 13, FontWeights.Normal, Color.FromRgb(0x1E, 0x8C, 0xBC)));
             body.Children.Add(new Separator { Margin = new Thickness(0, 12, 0, 12), Background = new SolidColorBrush(Color.FromRgb(0xDD, 0xE3, 0xE1)) });
             body.Children.Add(Row(l["AboutVersion"] + ": " + version, 12, FontWeights.Normal, Color.FromRgb(0x5B, 0x6A, 0x66)));
             body.Children.Add(Row("© ONE PROCESS Simulation", 11, FontWeights.Normal, Color.FromRgb(0x8A, 0x96, 0x8F)));
@@ -89,8 +90,8 @@ namespace OPBlocksManager
             var grid = new Grid { Width = 52, Height = 52 };
             var hex = new Polygon
             {
-                Stroke = Brushes.White,
-                StrokeThickness = 2,
+                Stroke = AccentBlue,
+                StrokeThickness = 2.5,
                 Fill = Brushes.Transparent,
                 Stretch = Stretch.Uniform
             };

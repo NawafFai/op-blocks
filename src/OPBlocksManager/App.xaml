@@ -2,47 +2,173 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
-        <SolidColorBrush x:Key="BrandAccent" Color="#0E7C66"/>
-        <SolidColorBrush x:Key="BrandAccentDark" Color="#0A5E4D"/>
-        <SolidColorBrush x:Key="PanelBg" Color="#F4F6F5"/>
-        <SolidColorBrush x:Key="CardBorder" Color="#DDE3E1"/>
 
-        <Style TargetType="Button" x:Key="AccentButton">
-            <Setter Property="Background" Value="{StaticResource BrandAccent}"/>
+        <!-- ============================================================= -->
+        <!--  ONE PROCESS design system                                    -->
+        <!--  Brand palette (owner-specified): navy #1B3A5C + blue #29ABE2 -->
+        <!-- ============================================================= -->
+
+        <!-- Brand -->
+        <SolidColorBrush x:Key="BrandNavy"      Color="#1B3A5C"/>
+        <SolidColorBrush x:Key="BrandNavyDark"  Color="#14293F"/>
+        <SolidColorBrush x:Key="BrandNavyLight" Color="#274C74"/>
+        <SolidColorBrush x:Key="BrandBlue"      Color="#29ABE2"/>
+        <SolidColorBrush x:Key="BrandBlueDark"  Color="#1E8CBC"/>
+        <SolidColorBrush x:Key="BrandBlueTint"  Color="#E9F6FC"/>
+
+        <!-- Neutrals -->
+        <SolidColorBrush x:Key="WindowBg"       Color="#F4F7FA"/>
+        <SolidColorBrush x:Key="CardBg"         Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="PanelBg"        Color="#EDF2F6"/>
+        <SolidColorBrush x:Key="CardBorder"     Color="#E1E8EF"/>
+        <SolidColorBrush x:Key="Divider"        Color="#EAEEF2"/>
+        <SolidColorBrush x:Key="TextPrimary"    Color="#1E2A38"/>
+        <SolidColorBrush x:Key="TextSecondary"  Color="#586A7B"/>
+        <SolidColorBrush x:Key="TextMuted"      Color="#93A1AE"/>
+        <SolidColorBrush x:Key="ConsoleBg"      Color="#16222E"/>
+        <SolidColorBrush x:Key="ConsoleText"    Color="#CDE0EC"/>
+
+        <!-- Semantic status colours -->
+        <SolidColorBrush x:Key="Success"        Color="#1E9E6A"/>
+        <SolidColorBrush x:Key="Warning"        Color="#E0912F"/>
+        <SolidColorBrush x:Key="Danger"         Color="#D64545"/>
+        <SolidColorBrush x:Key="DangerDark"     Color="#B93636"/>
+        <SolidColorBrush x:Key="Neutral"        Color="#9AA7B2"/>
+
+        <!-- Back-compat alias (older bindings referenced BrandAccent) -->
+        <SolidColorBrush x:Key="BrandAccent"    Color="#1B3A5C"/>
+
+        <!-- ============================================================= -->
+        <!--  Buttons                                                      -->
+        <!-- ============================================================= -->
+
+        <!-- Base: rounded, padded, hand cursor, template with a named border
+             so derived styles only re-colour Background. -->
+        <Style TargetType="Button" x:Key="ButtonBase">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Padding" Value="16,7"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12.5"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Primary action: brand blue. -->
+        <Style TargetType="Button" x:Key="PrimaryButton" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="{StaticResource BrandBlue}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource BrandAccentDark}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#B7C2BE"/>
+                    <Setter Property="Background" Value="{StaticResource BrandBlueDark}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style TargetType="Button" x:Key="GhostButton" BasedOn="{StaticResource AccentButton}">
-            <Setter Property="Background" Value="#6B7A76"/>
+        <!-- Navy solid — strong secondary emphasis on light backgrounds. -->
+        <Style TargetType="Button" x:Key="NavyButton" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="{StaticResource BrandNavy}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#54615E"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#C7CFCC"/>
+                    <Setter Property="Background" Value="{StaticResource BrandNavyDark}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Secondary (outline) — for lower-emphasis actions on light backgrounds. -->
+        <Style TargetType="Button" x:Key="SecondaryButton" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="{StaticResource CardBg}"/>
+            <Setter Property="Foreground" Value="{StaticResource BrandNavy}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#CBD6E0"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource BrandBlueTint}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource BrandBlue}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Danger (outline) — for Remove / Remove-all. -->
+        <Style TargetType="Button" x:Key="DangerButton" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="{StaticResource CardBg}"/>
+            <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#EBC3C3"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FBEDED"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource Danger}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Header ghost — transparent on the navy band (white text + hairline). -->
+        <Style TargetType="Button" x:Key="HeaderGhostButton" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="#22FFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#4DFFFFFF"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3AFFFFFF"/>
+                    <Setter Property="BorderBrush" Value="#80FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Header primary — brand blue chip on the navy band (the Enable actions). -->
+        <Style TargetType="Button" x:Key="HeaderPrimaryButton" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="{StaticResource BrandBlue}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3FBCF0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ============================================================= -->
+        <!--  Cards & chips                                                -->
+        <!-- ============================================================= -->
+
+        <Style TargetType="Border" x:Key="Card">
+            <Setter Property="Background" Value="{StaticResource CardBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style TargetType="Border" x:Key="Chip">
+            <Setter Property="Background" Value="{StaticResource PanelBg}"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="7,2"/>
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="SectionHeading">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        </Style>
+
     </Application.Resources>
 </Application>

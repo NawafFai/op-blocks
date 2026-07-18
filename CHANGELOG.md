@@ -18,7 +18,22 @@
   (COM activation gate, per-user registrar).
 - License: MIT with ONE PROCESS trademark notice.
 
-## v1.1 (in progress)
+## v1.1.0 — 2026-07-18
+
+### OP-Blocks Manager — professional redesign + one-click DWSIM
+
+- **"Enable in DWSIM"** one-click button: deploys the native DWSIM adapter
+  (`OPBlocks.DWSIM.dll` + `OPBlocks.*` + `CapeOpen.dll`) into
+  `%LOCALAPPDATA%\DWSIM\unitops\` so the blocks appear in DWSIM's palette **with
+  custom icons**, under an OP-BLOCKS grouping. The button is state-aware
+  (Enable ⇄ Disable) and needs no elevation (per-user folder).
+- **Bulk actions** — *Install all* / *Remove all* register or unregister the
+  whole library in a **single** UAC elevation instead of one prompt per family.
+- **Visual redesign** to the ONE PROCESS navy (`#1B3A5C`) + blue (`#29ABE2`)
+  palette: a proper WPF design system (brand/neutral/semantic brushes, reusable
+  button/card/chip styles), a gradient header, accent-rail host cards, a library
+  toolbar with a live block count, a card-framed block list, and a dark activity
+  console. Bilingual EN/AR (RTL) throughout.
 
 ### Priority 1B — Aspen Plus V14 custom icons: proven architectural limitation
 - Tested every Aspen V14 mechanism for custom CAPE-OPEN icons on the owner's

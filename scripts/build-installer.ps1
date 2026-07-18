@@ -21,6 +21,22 @@ dotnet publish (Join-Path $root "src\OPBlocksManager\OPBlocksManager.csproj") -c
 Write-Host "==> Staging blocks / templates / scripts / docs" -ForegroundColor Cyan
 Copy-Item (Join-Path $root "blocks")            (Join-Path $stage "blocks")    -Recurse -Force
 Copy-Item (Join-Path $root "installer\templates") (Join-Path $stage "templates") -Recurse -Force
+
+# Native DWSIM adapter -> stage\dwsim (what the Manager's "Enable in DWSIM" copies
+# into %LOCALAPPDATA%\DWSIM\unitops). Built net48; skip gracefully if the DWSIM
+# build output is absent on this machine (e.g. no DWSIM SDK layout to compile against).
+$dwsimBin = Join-Path $root "src\OPBlocks.DWSIM\bin\$Configuration"
+$adapter  = Join-Path $dwsimBin "OPBlocks.DWSIM.dll"
+if (Test-Path $adapter) {
+    $dwsimStage = Join-Path $stage "dwsim"
+    New-Item -ItemType Directory -Force -Path $dwsimStage | Out-Null
+    Copy-Item (Join-Path $dwsimBin "OPBlocks*.dll") $dwsimStage -Force
+    $cape = Join-Path $root "libs\CapeOpen\CapeOpen.dll"
+    if (Test-Path $cape) { Copy-Item $cape $dwsimStage -Force }
+    Write-Host "    staged native DWSIM adapter -> $dwsimStage" -ForegroundColor DarkGray
+} else {
+    Write-Warning "Native DWSIM adapter not built ($adapter) - 'Enable in DWSIM' won't ship. Build src\OPBlocks.DWSIM first."
+}
 New-Item -ItemType Directory -Force -Path (Join-Path $stage "scripts") | Out-Null
 Copy-Item (Join-Path $root "scripts\register-all-blocks.ps1") (Join-Path $stage "scripts") -Force
 Copy-Item (Join-Path $root "installer\README-EndUser.txt") (Join-Path $stage "README.txt") -Force
@@ -31,7 +47,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage "docs") | Out-Null
 Copy-Item (Join-Path $root "docs\block-catalog.html") (Join-Path $stage "docs") -Force -ErrorAction SilentlyContinue
 
 Write-Host "==> Portable ZIP" -ForegroundColor Cyan
-$zip = Join-Path $root "build\OPBlocks-1.0.0-portable.zip"
+$zip = Join-Path $root "build\OPBlocks-1.1.0-portable.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip
 Write-Host "    $zip" -ForegroundColor DarkGray

@@ -23,47 +23,44 @@ namespace OPBlocksManager.Services
 
         public const string CmdRegister = "--register";
         public const string CmdUnregister = "--unregister";
+        public const string CmdRegisterAll = "--register-all";
+        public const string CmdUnregisterAll = "--unregister-all";
         public const string ArgManifest = "--manifest";
+        public const string ArgBlocksDir = "--blocksdir";
         public const string ArgResult = "--result";
 
         public static bool IsWorkerInvocation(string[] args)
         {
-            return args != null && (args.Contains(CmdRegister) || args.Contains(CmdUnregister));
+            return args != null && (args.Contains(CmdRegister) || args.Contains(CmdUnregister)
+                                 || args.Contains(CmdRegisterAll) || args.Contains(CmdUnregisterAll));
         }
 
         /// <summary>Entry point for the elevated instance. Returns a process exit code.</summary>
         public static int Run(string[] args)
         {
-            bool unregister = args.Contains(CmdUnregister);
-            string manifestPath = ArgValue(args, ArgManifest);
+            bool unregister = args.Contains(CmdUnregister) || args.Contains(CmdUnregisterAll);
+            bool all = args.Contains(CmdRegisterAll) || args.Contains(CmdUnregisterAll);
             string resultPath = ArgValue(args, ArgResult);
             var log = new StringBuilder();
             bool success = false;
 
             try
             {
-                if (string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath))
-                    throw new FileNotFoundException("Manifest not found: " + manifestPath);
+                System.Collections.Generic.IEnumerable<BlockManifest> manifests =
+                    all ? LoadAllManifests(ArgValue(args, ArgBlocksDir))
+                        : new System.Collections.Generic.List<BlockManifest> { LoadSingleManifest(ArgValue(args, ArgManifest)) };
 
-                var manifest = JsonSerializer.Deserialize<BlockManifest>(
-                    File.ReadAllText(manifestPath),
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                string dll = Path.Combine(Path.GetDirectoryName(manifestPath), manifest.Dll);
-                if (!File.Exists(dll)) throw new FileNotFoundException("Block DLL not found: " + dll);
-
-                foreach (var (regasm, bit) in new[] { (RegAsm64, "x64"), (RegAsm32, "x86") })
+                int done = 0;
+                foreach (BlockManifest manifest in manifests)
                 {
-                    if (!File.Exists(regasm)) { log.AppendLine($"[{bit}] RegAsm not found: {regasm}"); continue; }
-                    string args2 = unregister ? $"\"{dll}\" /unregister" : $"\"{dll}\" /codebase";
-                    int code = RunProcess(regasm, args2, log, bit);
-                    if (code != 0) log.AppendLine($"[{bit}] RegAsm exit code {code}");
+                    RegisterManifest(manifest, unregister, log);
+                    done++;
                 }
 
-                if (!unregister)
-                    FixMetadata(manifest, log);
-
-                success = true;
-                log.AppendLine(unregister ? "Unregistered." : "Registered in x64 + x86 hives.");
+                success = done > 0;
+                log.AppendLine(all
+                    ? (unregister ? $"Unregistered {done} family/families." : $"Registered {done} family/families (x64 + x86).")
+                    : (unregister ? "Unregistered." : "Registered in x64 + x86 hives."));
             }
             catch (Exception ex)
             {
@@ -73,6 +70,52 @@ namespace OPBlocksManager.Services
 
             WriteResult(resultPath, new RegistrationResult { Success = success, Log = log.ToString() });
             return success ? 0 : 1;
+        }
+
+        private static BlockManifest LoadSingleManifest(string manifestPath)
+        {
+            if (string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath))
+                throw new FileNotFoundException("Manifest not found: " + manifestPath);
+            var m = JsonSerializer.Deserialize<BlockManifest>(
+                File.ReadAllText(manifestPath),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            m.ManifestPath = manifestPath;
+            m.ManifestDirectory = Path.GetDirectoryName(manifestPath);
+            m.DllPath = Path.Combine(m.ManifestDirectory, m.Dll);
+            return m;
+        }
+
+        private static System.Collections.Generic.List<BlockManifest> LoadAllManifests(string blocksDir)
+        {
+            if (string.IsNullOrEmpty(blocksDir) || !Directory.Exists(blocksDir))
+                throw new DirectoryNotFoundException("Block library not found: " + blocksDir);
+            var manifests = new BlockCatalog().Load(blocksDir);
+            if (manifests.Count == 0)
+                throw new FileNotFoundException("No block manifests under " + blocksDir);
+            return manifests;
+        }
+
+        /// <summary>RegAsm one family DLL in BOTH hives, then correct its CapeDescription metadata.</summary>
+        private static void RegisterManifest(BlockManifest manifest, bool unregister, StringBuilder log)
+        {
+            string dll = manifest.DllPath;
+            if (string.IsNullOrEmpty(dll) || !File.Exists(dll))
+            {
+                log.AppendLine($"[{manifest.Family}] SKIPPED — DLL not found: {dll}");
+                return;
+            }
+
+            log.AppendLine($"== {manifest.Family} ({Path.GetFileName(dll)}) ==");
+            foreach (var (regasm, bit) in new[] { (RegAsm64, "x64"), (RegAsm32, "x86") })
+            {
+                if (!File.Exists(regasm)) { log.AppendLine($"[{bit}] RegAsm not found: {regasm}"); continue; }
+                string args2 = unregister ? $"\"{dll}\" /unregister" : $"\"{dll}\" /codebase";
+                int code = RunProcess(regasm, args2, log, bit);
+                if (code != 0) log.AppendLine($"[{bit}] RegAsm exit code {code}");
+            }
+
+            if (!unregister)
+                FixMetadata(manifest, log);
         }
 
         private static int RunProcess(string exe, string arguments, StringBuilder log, string bit)
