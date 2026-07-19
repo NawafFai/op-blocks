@@ -8,7 +8,7 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20%7C%20DWSIM-1B3A5C)
-![tests](https://img.shields.io/badge/tests-369%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-382%20passing-brightgreen)
 ![blocks](https://img.shields.io/badge/blocks-25-29ABE2)
 
 **‏25 عملية وحدة (Unit Operation) مفتوحة المصدر بمعيار CAPE-OPEN، لمحاكاة معالجة
@@ -18,54 +18,60 @@
 
 كل بلوك يتبع النمط الهندسي نفسه: محرّك فيزيائي نقي بمراجع منشورة، ربط آمن مع
 المضيف عبر واجهات CAPE-OPEN، فورم بتبويبين (المدخلات/النتائج)، وحزمة اختبارات
-تحقّق مثبَّتة على مراجع علمية. **‏369 اختبار وحدة، كلها ناجحة** (حزم تحقّق لكل
-بلوك + اختبارات البنية)، إضافةً إلى تفعيل حي عبر COM وظهورٍ مؤكَّد في لوحة
-CAPE-OPEN على كلٍّ من Aspen Plus و DWSIM.
+تحقّق مثبَّتة على مراجع علمية. **‏382 اختبار وحدة، كلها ناجحة** (حزم تحقّق لكل
+بلوك + اختبارات البنية)، إضافةً إلى **مسح حيّ متقارب 25/25 داخل محرّك
+Aspen Plus V14** وحزمة تشغيل كاملة على محرّك DWSIM الحقيقي (**نجاح جميع
+الفحوص، 25 بلوكًا**).
 
-![لمحة عن v1.0: 25 بلوكًا، 5 عائلات، 369 اختبارًا ناجحًا، مضيفان](docs/media/stats.png)
+![لمحة سريعة: 25 بلوكًا، 5 عائلات، 382 اختبارًا ناجحًا، مسح حي 25/25، مضيفان](docs/media/stats.png)
 
 ---
 
 ## الحالة بصدق — اقرأها قبل الاستخدام
 
-نميّز بين مستويَي تحقّق ولا نخلط بينهما:
+كل ادّعاء هنا خلفه دليل آلي على البناء المنشور نفسه:
 
-| المستوى | المعنى |
+| الدليل | ما يثبته |
 |---|---|
-| ✅ **مفحوص على المضيف** | شُغِّل **متقاربًا** داخل Aspen Plus V14 بتوازن كتلة مضبوط، وثبات عبر 20 تشغيلًا، ونتائج مطابقة تمامًا لجدول التيّارات. |
-| 🧪 **مُتحقَّق فيزيائيًا** | حزمة الاختبارات كاملة ناجحة مقابل **مراسٍ من بيانات منشورة** على محاكيَي ثيرمو (CAPE-OPEN 1.0 و1.1)، ويُفعَّل عبر COM حقيقي، ويظهر في لوحة Aspen الحية — لكن **لم يُشغَّل بعد** تشغيلًا متقاربًا داخل المضيف. |
+| ✅ **مسح حي في Aspen — تقارب 25/25** | كل بلوك شُغِّل بحالة مناسبة لفيزيائه (مياه بحر للأغشية، H₂/هواء لخلية الوقود، امتصاص CO₂، تحليل كهربائي لمحلول ملحي، …) داخل محرّك Aspen Plus V14 حي: حالة بلوك نظيفة، توازن كتلة مضبوط (إغلاقات 1e-9 … 1e-16)، ونتائج منتهية القيم. |
+| ✅ **حزمة محرّك DWSIM — نجاح جميع الفحوص (25 بلوكًا)** | المكتبة تعمل على محرّك DWSIM الحقيقي، بما في ذلك مخططات متقاربة من الطرف إلى الطرف — حالة ملحية لـ RO تأخذ تغذية 35,000 ppm إلى ناتجٍ نقي 181 ppm ومعدل الاسترداد المبلَّغ يساوي قيمة التيّار (توازن كتلة ~2e-16). |
+| 🧪 **‏382 اختبار وحدة، كلها ناجحة** | حزم تحقّق لكل بلوك مثبَّتة على مراسٍ منشورة (فاراداي إلى 1e-9، ‏Kremser‏ 14/15 مضبوطة، ضغط بخار جداول البخار، ذروة PRO عند ΔP* = Δπ/2 …) تُعاد عبر واجهات CAPE-OPEN الحقيقية على محاكيَي ثيرمو 1.0 و1.1. |
+
+أعمق الأدلة على **OP-RO، البلوك المرجعي**: ‏20 تشغيلًا متتاليًا داخل المضيف
+بانحراف صفري، وطريقتا IDEAL **و**ELECNRTL (إلكتروليتية)، ووضعا Rating/Design
+مع ERD، وشبكة نتائج تساوي جدول تيّارات المخرج تمامًا.
 
 ### كتالوج البلوكات
 
 | العائلة | البلوك | الفيزياء (المراجع في `docs/OP-*_MODEL.md`) | الحالة |
 |---|---|---|---|
 | Membranes | **OP-RO** Reverse Osmosis | Solution-diffusion، متوسط ضغط أسموزي بالتنصيف، ERD، وضعا Rating/Design | ✅ مفحوص (IDEAL + ELECNRTL) |
-| Membranes | **OP-NF** Nanofiltration | Spiegler–Kedem σ، انتقائية للأيونات متعددة التكافؤ (Kedem 1958؛ Mohammad 2015) | 🧪 مُتحقَّق فيزيائيًا |
-| Membranes | **OP-UF** Ultrafiltration | تدفق دارسي، إقصاء حجمي — الأملاح تمرّ (Cheryan 1998) | 🧪 مُتحقَّق فيزيائيًا |
-| Membranes | **OP-FO** Forward Osmosis | متوسط Δπ للوحدة + تدفق ملحي عكسي (Cath 2006؛ McCutcheon 2006) | 🧪 مُتحقَّق فيزيائيًا |
-| Membranes | **OP-PRO** Pressure-Retarded Osmosis | ‏W = A(σΔπ−ΔP)ΔP، وذروة القدرة عند ΔP* = Δπ/2 (Loeb 1976؛ Achilli 2010) | 🧪 مُتحقَّق فيزيائيًا |
-| Thermal | **OP-MD** Membrane Distillation | تدفق بخار DCMD، معامل Bm بمقياس كنودسن، ضغط بخار أنطوان (Schofield 1987) | 🧪 مُتحقَّق فيزيائيًا |
-| Thermal | **OP-MED** Multi-Effect Distillation | ‏GOR = 0.85·N، تنبيهات تركيز المحلول الملحي (El-Dessouky ch.8) | 🧪 مُتحقَّق فيزيائيًا |
-| Thermal | **OP-MSF** Multi-Stage Flash | نموذج المرور الواحد y = cpΔT/λ، استرداد صادق ~9٪، PR ≈ 10 (El-Dessouky ch.6) | 🧪 مُتحقَّق فيزيائيًا |
-| Thermal | **OP-MVC** Mech. Vapour Compression | شغل ضغط بخار أيزنتروبي، SEC ضمن نطاق 8–16 kWh/m³ (El-Dessouky ch.7) | 🧪 مُتحقَّق فيزيائيًا |
-| Thermal | **OP-EVAPPOND** Solar Evaporation Pond | دالتون/ديناميكا هوائية + نشاط الماء + إغلاق شمسي (Penman 1948؛ Sartori 2000) | 🧪 مُتحقَّق فيزيائيًا |
-| Electrochemical | **OP-ED** Electrodialysis | نقل فاراداي، مقاومة أومية، سحب الماء (Strathmann 2004) | 🧪 مُتحقَّق فيزيائيًا |
-| Electrochemical | **OP-EDI** Electrodeionization | سقف فاراداي + تجديد بتفكيك الماء (Ganzi 1987) | 🧪 مُتحقَّق فيزيائيًا |
-| Electrochemical | **OP-CDI** Capacitive Deionization | سعة SAC + كفاءة الشحنة Λ (Porada 2013؛ Suss 2015) | 🧪 مُتحقَّق فيزيائيًا |
-| Electrochemical | **OP-CHLORALK** Chlor-Alkali Cell | فاراداي لخلية الغشاء، 2.44 kWh/kg من Cl₂ عند 3.1 V (O'Brien 2005) | 🧪 مُتحقَّق فيزيائيًا |
-| Electrochemical | **OP-IX** Ion Exchange | تليين بالمكافئات، انتقائية Ca/Mg (Helfferich 1962) | 🧪 مُتحقَّق فيزيائيًا |
-| Lithium & Sorption | **OP-DLE** Direct Lithium Extraction | Langmuir + انتشار LDF لغلوكاوف، انتقائية Mg/Li (Langmuir 1918) | 🧪 مُتحقَّق فيزيائيًا |
-| Lithium & Sorption | **OP-SX** Solvent Extraction | تعاقب Kremser — مرساة مضبوطة 14/15 (Kremser 1930؛ Seader 3e) | 🧪 مُتحقَّق فيزيائيًا |
-| Lithium & Sorption | **OP-GAC** Activated Carbon | Freundlich + معدل استهلاك الكربون + عمر المهد (MWH ch.15) | 🧪 مُتحقَّق فيزيائيًا |
-| Lithium & Sorption | **OP-CRYST** Crystallizer | مردود بلْوَرة محدود بالذوبانية (Mullin 4e؛ جداول CRC) | 🧪 مُتحقَّق فيزيائيًا |
-| Lithium & Sorption | **OP-PPT** Chemical Precipitation | ترسيب متكافئ محدود بالكاشف (Metcalf & Eddy 5e) | 🧪 مُتحقَّق فيزيائيًا |
-| Energy & Gas | **OP-PEM** PEM Electrolyzer | فاراداي + SEC مضبوط = 26.59·V/η kWh/kg (Carmo 2013) | 🧪 مُتحقَّق فيزيائيًا |
-| Energy & Gas | **OP-AEL** Alkaline Electrolyzer | نفس محرّك فاراداي بنطاقات قلوية (Ursúa 2012) | 🧪 مُتحقَّق فيزيائيًا |
-| Energy & Gas | **OP-FC** PEM Fuel Cell | فاراداي + كفاءة مضبوطة η_LHV = V/1.253 (O'Hayre 3e) | 🧪 مُتحقَّق فيزيائيًا |
-| Energy & Gas | **OP-RPB** Rotating Packed Bed | امتصاص HiGee بـ NTU = k·√RPM (Ramshaw 1981؛ Chen 2005) | 🧪 مُتحقَّق فيزيائيًا |
-| Energy & Gas | **OP-UVAOP** UV / Advanced Oxidation | استجابة جرعة من الرتبة الأولى + EEO لبولتون (Bolton 2001) | 🧪 مُتحقَّق فيزيائيًا |
+| Membranes | **OP-NF** Nanofiltration | Spiegler–Kedem σ، انتقائية للأيونات متعددة التكافؤ (Kedem 1958؛ Mohammad 2015) | ✅ مفحوص على المضيف |
+| Membranes | **OP-UF** Ultrafiltration | تدفق دارسي، إقصاء حجمي — الأملاح تمرّ (Cheryan 1998) | ✅ مفحوص على المضيف |
+| Membranes | **OP-FO** Forward Osmosis | متوسط Δπ للوحدة + تدفق ملحي عكسي (Cath 2006؛ McCutcheon 2006) | ✅ مفحوص على المضيف |
+| Membranes | **OP-PRO** Pressure-Retarded Osmosis | ‏W = A(σΔπ−ΔP)ΔP، وذروة القدرة عند ΔP* = Δπ/2 (Loeb 1976؛ Achilli 2010) | ✅ مفحوص على المضيف |
+| Thermal | **OP-MD** Membrane Distillation | تدفق بخار DCMD، معامل Bm بمقياس كنودسن، ضغط بخار أنطوان (Schofield 1987) | ✅ مفحوص على المضيف |
+| Thermal | **OP-MED** Multi-Effect Distillation | ‏GOR = 0.85·N، تنبيهات تركيز المحلول الملحي (El-Dessouky ch.8) | ✅ مفحوص على المضيف |
+| Thermal | **OP-MSF** Multi-Stage Flash | نموذج المرور الواحد y = cpΔT/λ، استرداد صادق ~9٪، PR ≈ 10 (El-Dessouky ch.6) | ✅ مفحوص على المضيف |
+| Thermal | **OP-MVC** Mech. Vapour Compression | شغل ضغط بخار أيزنتروبي، SEC ضمن نطاق 8–16 kWh/m³ (El-Dessouky ch.7) | ✅ مفحوص على المضيف |
+| Thermal | **OP-EVAPPOND** Solar Evaporation Pond | دالتون/ديناميكا هوائية + نشاط الماء + إغلاق شمسي (Penman 1948؛ Sartori 2000) | ✅ مفحوص على المضيف |
+| Electrochemical | **OP-ED** Electrodialysis | نقل فاراداي، مقاومة أومية، سحب الماء (Strathmann 2004) | ✅ مفحوص على المضيف |
+| Electrochemical | **OP-EDI** Electrodeionization | سقف فاراداي + تجديد بتفكيك الماء (Ganzi 1987) | ✅ مفحوص على المضيف |
+| Electrochemical | **OP-CDI** Capacitive Deionization | سعة SAC + كفاءة الشحنة Λ (Porada 2013؛ Suss 2015) | ✅ مفحوص على المضيف |
+| Electrochemical | **OP-CHLORALK** Chlor-Alkali Cell | فاراداي لخلية الغشاء، 2.44 kWh/kg من Cl₂ عند 3.1 V (O'Brien 2005) | ✅ مفحوص على المضيف |
+| Electrochemical | **OP-IX** Ion Exchange | تليين بالمكافئات، انتقائية Ca/Mg (Helfferich 1962) | ✅ مفحوص على المضيف |
+| Lithium & Sorption | **OP-DLE** Direct Lithium Extraction | Langmuir + انتشار LDF لغلوكاوف، انتقائية Mg/Li (Langmuir 1918) | ✅ مفحوص على المضيف |
+| Lithium & Sorption | **OP-SX** Solvent Extraction | تعاقب Kremser — مرساة مضبوطة 14/15 (Kremser 1930؛ Seader 3e) | ✅ مفحوص على المضيف |
+| Lithium & Sorption | **OP-GAC** Activated Carbon | Freundlich + معدل استهلاك الكربون + عمر المهد (MWH ch.15) | ✅ مفحوص على المضيف |
+| Lithium & Sorption | **OP-CRYST** Crystallizer | مردود بلْوَرة محدود بالذوبانية (Mullin 4e؛ جداول CRC) | ✅ مفحوص على المضيف |
+| Lithium & Sorption | **OP-PPT** Chemical Precipitation | ترسيب متكافئ محدود بالكاشف (Metcalf & Eddy 5e) | ✅ مفحوص على المضيف |
+| Energy & Gas | **OP-PEM** PEM Electrolyzer | فاراداي + SEC مضبوط = 26.59·V/η kWh/kg (Carmo 2013) | ✅ مفحوص على المضيف |
+| Energy & Gas | **OP-AEL** Alkaline Electrolyzer | نفس محرّك فاراداي بنطاقات قلوية (Ursúa 2012) | ✅ مفحوص على المضيف |
+| Energy & Gas | **OP-FC** PEM Fuel Cell | فاراداي + كفاءة مضبوطة η_LHV = V/1.253 (O'Hayre 3e) | ✅ مفحوص على المضيف |
+| Energy & Gas | **OP-RPB** Rotating Packed Bed | امتصاص HiGee بـ NTU = k·√RPM (Ramshaw 1981؛ Chen 2005) | ✅ مفحوص على المضيف |
+| Energy & Gas | **OP-UVAOP** UV / Advanced Oxidation | استجابة جرعة من الرتبة الأولى + EEO لبولتون (Bolton 2001) | ✅ مفحوص على المضيف |
 
-كل بلوك، في المستويين: منافذ مسماة، ومدخلات من نوع **RealParameter حصريًا** (النوع
+كل بلوك: منافذ مسماة، ومدخلات من نوع **RealParameter حصريًا** (النوع
 الوحيد الذي تعرضه شبكة CAPE-OPEN في Aspen)، وشبكة نتائج عبر معاملات الإخراج،
 وتنبيهات هندسية، وقسم "Model & References" في تقرير البلوك.
 
@@ -131,7 +137,7 @@ DWSIM لترجمته. إن لم يكن لديك DWSIM، ابنِ مشروع ال
 | `src/OPBlocks.Core` | `UnitBase`، `ThermoProxy`، محرّكات الفيزياء، التقارير، الحفظ |
 | `src/OPBlocks.{Desalination,Electro,Lithium,Energy}` | أصناف البلوكات الـ 25 |
 | `src/OPBlocksManager` | برنامج التثبيت/التسجيل (WPF) |
-| `tests/UnitTests` | 369 اختبار تحقّق (حزم لكل بلوك + البنية) |
+| `tests/UnitTests` | 382 اختبار تحقّق (حزم لكل بلوك + البنية) |
 | `docs/` | صفحات نماذج البلوكات (معادلات + مراجع + مراسٍ)، والمعمارية، والمواصفة |
 | `scripts/` | سكربتات البناء/التسجيل/التجميع/التثبيت |
 | `installer/` | سكربت Inno Setup، لوحة Aspen (`ONE PROCESS.apm`)، القوالب |

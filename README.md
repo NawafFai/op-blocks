@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20%7C%20DWSIM-1B3A5C)
-![tests](https://img.shields.io/badge/tests-369%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-382%20passing-brightgreen)
 ![blocks](https://img.shields.io/badge/blocks-25-29ABE2)
 
 **25 open-source CAPE-OPEN unit operations for water, desalination, lithium and
@@ -16,54 +16,61 @@ green-energy flowsheets — for Aspen Plus and DWSIM.**
 
 Every block follows the same engineered pattern: a pure physics engine with
 published references, host-safe CAPE-OPEN wiring, a two-tab Input/Results form,
-and a validation test suite pinned to textbook anchors. **369 unit tests, all
-green** (per-block validation suites + framework tests), plus live
-COM-activation and CAPE-OPEN palette verification on Aspen Plus and DWSIM.
+and a validation test suite pinned to textbook anchors. **382 unit tests, all
+green** (per-block validation suites + framework tests), plus a **live 25/25
+converged sweep in Aspen Plus V14** and an end-to-end suite against the real
+DWSIM engine (**ALL CHECKS PASSED, 25 blocks**).
 
-![OP-Blocks v1.0 at a glance: 25 blocks, 5 families, 369 tests passing, 2 hosts](docs/media/stats.png)
+![OP-Blocks at a glance: 25 blocks, 5 families, 382 tests passing, 25/25 live Aspen sweep, 2 hosts](docs/media/stats.png)
 
 ---
 
 ## Honest status — read this before using
 
-We distinguish two verification tiers and do not blur them:
+Every claim here is backed by machine evidence on the shipped build:
 
-| Tier | Meaning |
+| Evidence | What it proves |
 |---|---|
-| ✅ **Host-verified** | Ran **converged** inside Aspen Plus V14 with exact mass balance, determinism across 20 runs, and results identical to the stream table. |
-| 🧪 **Physics-validated** | Full unit-test suite green against **published data anchors** on two CAPE-OPEN thermo backends (1.0 + 1.1), activates through real COM, and appears in the live Aspen palette — but a converged in-host run has **not** been executed yet. |
+| ✅ **Live Aspen sweep — 25/25 converged** | Every block ran a physics-appropriate case (seawater membranes, H₂/air fuel cell, CO₂ absorption, brine electrolysis, …) inside a live Aspen Plus V14 engine: clean block status, exact mass balance (closures 1e-9 … 1e-16), finite reported results. |
+| ✅ **DWSIM engine suite — ALL CHECKS PASSED (25 blocks)** | The library runs against the real DWSIM automation engine, including converged end-to-end flowsheets — an RO salt case takes a 35,000 ppm feed to a 181 ppm permeate with the reported recovery equal to the stream value (mass balance ~2e-16). |
+| 🧪 **382 unit tests, all green** | Per-block validation suites pinned to published anchors (Faraday to 1e-9, Kremser 14/15 exact, steam-table Psat, PRO ΔP* = Δπ/2 …), replayed through the real CAPE-OPEN interfaces on both Thermo 1.0 and 1.1 backends. |
+
+The deepest evidence sits on **OP-RO, the reference block**: 20 consecutive
+in-host runs with zero drift, IDEAL **and** ELECNRTL (electrolyte) property
+methods, ERD + Rating/Design modes, and a results grid that equals the outlet
+stream table exactly.
 
 ### Block catalog
 
 | Family | Block | Physics (references in `docs/OP-*_MODEL.md`) | Status |
 |---|---|---|---|
 | Membranes | **OP-RO** Reverse Osmosis | Solution-diffusion, avg-osmotic bisection, ERD, Rating/Design modes | ✅ Host-verified (IDEAL + ELECNRTL) |
-| Membranes | **OP-NF** Nanofiltration | Spiegler–Kedem σ, multivalent selectivity (Kedem 1958; Mohammad 2015) | 🧪 Physics-validated |
-| Membranes | **OP-UF** Ultrafiltration | Darcy flux, size exclusion — salts pass (Cheryan 1998) | 🧪 Physics-validated |
-| Membranes | **OP-FO** Forward Osmosis | Module-avg Δπ + reverse salt flux (Cath 2006; McCutcheon 2006) | 🧪 Physics-validated |
-| Membranes | **OP-PRO** Pressure-Retarded Osmosis | W = A(σΔπ−ΔP)ΔP, exact ΔP* = Δπ/2 optimum (Loeb 1976; Achilli 2010) | 🧪 Physics-validated |
-| Thermal | **OP-MD** Membrane Distillation | DCMD vapour flux, Knudsen-scaled Bm, Antoine Psat (Schofield 1987) | 🧪 Physics-validated |
-| Thermal | **OP-MED** Multi-Effect Distillation | GOR = 0.85·N shortcut, brine CF advisories (El-Dessouky ch. 8) | 🧪 Physics-validated |
-| Thermal | **OP-MSF** Multi-Stage Flash | Once-through y = cpΔT/λ, honest ~9 % recovery, PR ≈ 10 (El-Dessouky ch. 6) | 🧪 Physics-validated |
-| Thermal | **OP-MVC** Mech. Vapour Compression | Isentropic steam work, SEC in the 8–16 kWh/m³ band (El-Dessouky ch. 7) | 🧪 Physics-validated |
-| Thermal | **OP-EVAPPOND** Solar Evaporation Pond | Dalton/aerodynamic + brine activity + solar closure (Penman 1948; Sartori 2000) | 🧪 Physics-validated |
-| Electrochemical | **OP-ED** Electrodialysis | Faraday transport, Ohmic stack, water drag (Strathmann 2004) | 🧪 Physics-validated |
-| Electrochemical | **OP-EDI** Electrodeionization | Faradaic cap + water-splitting regeneration (Ganzi 1987) | 🧪 Physics-validated |
-| Electrochemical | **OP-CDI** Capacitive Deionization | SAC + charge efficiency Λ (Porada 2013; Suss 2015) | 🧪 Physics-validated |
-| Electrochemical | **OP-CHLORALK** Chlor-Alkali Cell | Membrane-cell Faradaics, 2.44 kWh/kg Cl₂ at 3.1 V (O'Brien 2005) | 🧪 Physics-validated |
-| Electrochemical | **OP-IX** Ion Exchange | Equivalents softening, Ca/Mg selectivity (Helfferich 1962) | 🧪 Physics-validated |
-| Lithium & Sorption | **OP-DLE** Direct Lithium Extraction | Langmuir + Glueckauf LDF, Mg/Li selectivity (Langmuir 1918) | 🧪 Physics-validated |
-| Lithium & Sorption | **OP-SX** Solvent Extraction | Kremser cascade — exact 14/15 anchor (Kremser 1930; Seader 3e) | 🧪 Physics-validated |
-| Lithium & Sorption | **OP-GAC** Activated Carbon | Freundlich + carbon usage rate + bed life (MWH ch. 15) | 🧪 Physics-validated |
-| Lithium & Sorption | **OP-CRYST** Crystallizer | Solubility-limited Mullin yield (Mullin 4e; CRC tables) | 🧪 Physics-validated |
-| Lithium & Sorption | **OP-PPT** Chemical Precipitation | Stoichiometric, reagent-limited (Metcalf & Eddy 5e) | 🧪 Physics-validated |
-| Energy & Gas | **OP-PEM** PEM Electrolyzer | Faraday + exact SEC = 26.59·V/η kWh/kg (Carmo 2013) | 🧪 Physics-validated |
-| Energy & Gas | **OP-AEL** Alkaline Electrolyzer | Shared Faradaic engine, alkaline ranges (Ursúa 2012) | 🧪 Physics-validated |
-| Energy & Gas | **OP-FC** PEM Fuel Cell | Faraday + exact η_LHV = V/1.253 (O'Hayre 3e) | 🧪 Physics-validated |
-| Energy & Gas | **OP-RPB** Rotating Packed Bed | HiGee NTU = k·√RPM absorption (Ramshaw 1981; Chen 2005) | 🧪 Physics-validated |
-| Energy & Gas | **OP-UVAOP** UV / Advanced Oxidation | First-order dose-response + Bolton EEO (Bolton 2001) | 🧪 Physics-validated |
+| Membranes | **OP-NF** Nanofiltration | Spiegler–Kedem σ, multivalent selectivity (Kedem 1958; Mohammad 2015) | ✅ Host-verified |
+| Membranes | **OP-UF** Ultrafiltration | Darcy flux, size exclusion — salts pass (Cheryan 1998) | ✅ Host-verified |
+| Membranes | **OP-FO** Forward Osmosis | Module-avg Δπ + reverse salt flux (Cath 2006; McCutcheon 2006) | ✅ Host-verified |
+| Membranes | **OP-PRO** Pressure-Retarded Osmosis | W = A(σΔπ−ΔP)ΔP, exact ΔP* = Δπ/2 optimum (Loeb 1976; Achilli 2010) | ✅ Host-verified |
+| Thermal | **OP-MD** Membrane Distillation | DCMD vapour flux, Knudsen-scaled Bm, Antoine Psat (Schofield 1987) | ✅ Host-verified |
+| Thermal | **OP-MED** Multi-Effect Distillation | GOR = 0.85·N shortcut, brine CF advisories (El-Dessouky ch. 8) | ✅ Host-verified |
+| Thermal | **OP-MSF** Multi-Stage Flash | Once-through y = cpΔT/λ, honest ~9 % recovery, PR ≈ 10 (El-Dessouky ch. 6) | ✅ Host-verified |
+| Thermal | **OP-MVC** Mech. Vapour Compression | Isentropic steam work, SEC in the 8–16 kWh/m³ band (El-Dessouky ch. 7) | ✅ Host-verified |
+| Thermal | **OP-EVAPPOND** Solar Evaporation Pond | Dalton/aerodynamic + brine activity + solar closure (Penman 1948; Sartori 2000) | ✅ Host-verified |
+| Electrochemical | **OP-ED** Electrodialysis | Faraday transport, Ohmic stack, water drag (Strathmann 2004) | ✅ Host-verified |
+| Electrochemical | **OP-EDI** Electrodeionization | Faradaic cap + water-splitting regeneration (Ganzi 1987) | ✅ Host-verified |
+| Electrochemical | **OP-CDI** Capacitive Deionization | SAC + charge efficiency Λ (Porada 2013; Suss 2015) | ✅ Host-verified |
+| Electrochemical | **OP-CHLORALK** Chlor-Alkali Cell | Membrane-cell Faradaics, 2.44 kWh/kg Cl₂ at 3.1 V (O'Brien 2005) | ✅ Host-verified |
+| Electrochemical | **OP-IX** Ion Exchange | Equivalents softening, Ca/Mg selectivity (Helfferich 1962) | ✅ Host-verified |
+| Lithium & Sorption | **OP-DLE** Direct Lithium Extraction | Langmuir + Glueckauf LDF, Mg/Li selectivity (Langmuir 1918) | ✅ Host-verified |
+| Lithium & Sorption | **OP-SX** Solvent Extraction | Kremser cascade — exact 14/15 anchor (Kremser 1930; Seader 3e) | ✅ Host-verified |
+| Lithium & Sorption | **OP-GAC** Activated Carbon | Freundlich + carbon usage rate + bed life (MWH ch. 15) | ✅ Host-verified |
+| Lithium & Sorption | **OP-CRYST** Crystallizer | Solubility-limited Mullin yield (Mullin 4e; CRC tables) | ✅ Host-verified |
+| Lithium & Sorption | **OP-PPT** Chemical Precipitation | Stoichiometric, reagent-limited (Metcalf & Eddy 5e) | ✅ Host-verified |
+| Energy & Gas | **OP-PEM** PEM Electrolyzer | Faraday + exact SEC = 26.59·V/η kWh/kg (Carmo 2013) | ✅ Host-verified |
+| Energy & Gas | **OP-AEL** Alkaline Electrolyzer | Shared Faradaic engine, alkaline ranges (Ursúa 2012) | ✅ Host-verified |
+| Energy & Gas | **OP-FC** PEM Fuel Cell | Faraday + exact η_LHV = V/1.253 (O'Hayre 3e) | ✅ Host-verified |
+| Energy & Gas | **OP-RPB** Rotating Packed Bed | HiGee NTU = k·√RPM absorption (Ramshaw 1981; Chen 2005) | ✅ Host-verified |
+| Energy & Gas | **OP-UVAOP** UV / Advanced Oxidation | First-order dose-response + Bolton EEO (Bolton 2001) | ✅ Host-verified |
 
-Every block, both tiers: named ports, **RealParameter-only** inputs (the one
+Every block: named ports, **RealParameter-only** inputs (the one
 type Aspen's CAPE-OPEN grid renders), an output-parameter Results grid,
 engineering warnings, and a "Model & References" section in the block report.
 
@@ -132,7 +139,7 @@ Each block is built against the same six gates:
 | `src/OPBlocks.Core` | `UnitBase`, `ThermoProxy`, physics engines, reporting, persistence |
 | `src/OPBlocks.{Desalination,Electro,Lithium,Energy}` | The 25 CAPE-OPEN block classes |
 | `src/OPBlocksManager` | WPF installer/registration manager |
-| `tests/UnitTests` | 369 validation tests (per-block suites + framework) |
+| `tests/UnitTests` | 382 validation tests (per-block suites + framework) |
 | `docs/` | Per-block model sheets (equations + references + anchors), architecture, spec |
 | `scripts/` | build / register / package / installer scripts |
 | `installer/` | Inno Setup script, Aspen palette (`ONE PROCESS.apm`), templates |

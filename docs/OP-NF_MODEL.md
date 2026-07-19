@@ -116,5 +116,5 @@ brackish water (~2.5 bar at ~3000 ppm NaCl, the ≈0.8 bar/1000 ppm rule of thum
 multivalent ions permeate far less than monovalent (selectivity); σ < 1 raises the
 net driving pressure relative to the RO limit; exact mass balance; 20 consecutive
 runs identical to 1e-8; results table equals the outlet-stream values.
-**Live Aspen V14 GUI acceptance is pending on the owner's machine** (this session
-could not run Aspen — see HANDOFF §manual-verification).
+**Live Aspen Plus V14: ran converged in the 25-block engine sweep (2026-07-19)
+on the shipped build — clean block status and exact mass balance.**
