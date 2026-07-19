@@ -75,7 +75,7 @@ namespace OPBlocks.DwsimHostTest
                         .Where(t => t.GetInterfaces().Contains(typeof(IExternalUnitOperation)) && !t.IsAbstract)
                         .ToList();
                     types.AddRange(found);
-                    if (found.Count > 0) asm = a;
+                    if (found.Count > 0 && a.GetName().Name.StartsWith("OPBlocks", StringComparison.OrdinalIgnoreCase)) asm = a;
                     Console.WriteLine("  scanned " + Path.GetFileName(dll) + ": " + found.Count + " unit op(s)");
                 }
                 catch (Exception ex)
@@ -86,7 +86,11 @@ namespace OPBlocks.DwsimHostTest
                 }
             }
 
-            Check(types.Count == 25, "25 external unit operations discovered", "found " + types.Count);
+            // Against the REAL unitops folder DWSIM's own extension packs are present
+            // too (Refining, PipeNetwork, ...). We replay the same scan DWSIM does,
+            // but this harness gates OP-Blocks only — filter to our assemblies.
+            types = types.Where(t => t.Assembly.GetName().Name.StartsWith("OPBlocks", StringComparison.OrdinalIgnoreCase)).ToList();
+            Check(types.Count == 25, "25 OP-Blocks unit operations discovered", "found " + types.Count);
             if (asm == null) return Fail();
 
             var instances = new List<IExternalUnitOperation>();
