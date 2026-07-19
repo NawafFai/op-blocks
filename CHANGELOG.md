@@ -1,5 +1,39 @@
 # OP-Blocks Changelog
 
+## v1.1.2 — 2026-07-19
+
+### Host-accuracy fixes (both hosts), root-caused and proven live
+
+- **Aspen "completed with physical property errors" on saline feeds = pure-water
+  steam-table methods.** STEAMNBS / STEAM-TA cannot represent salt (block physics
+  is identical on every method; the property system alone errors). Two hardenings:
+  outlet TP-flashes are now restricted to the known single phase with an
+  all-phases fallback (removes the multi-phase steam-table calls and the SEVERE
+  "steam tables when water absent"), and the block raises **one actionable
+  warning** when the package returns near-pure-water density for a ≥1 % brine
+  (never fires on IDEAL / NRTL / ELECNRTL). Guidance: use ELECNRTL (or
+  IDEAL/NRTL) for saline feeds — the ONE PROCESS Aspen template already does.
+- **DWSIM zero-flow outlets.** The Thermo-1.1-first preference introduced
+  2026-07-14 silently starved DWSIM's Thermo 1.0 outlet bridge (DWSIM streams
+  implement both generations). `ThermoProxy` now prefers **Thermo 1.0 and falls
+  back to 1.1**; Aspen materials are 1.1-only and unaffected. End-to-end DWSIM
+  mass balance: 7.8e-16.
+- **OP-CHLORALK created ~7 % mass** — the cathode's water consumption
+  (2 H₂O per Cl₂) was never deducted. Model rewritten with explicit water
+  bookkeeping + a total-mass regression test; live closure now 1.4e-10.
+- **OP-PPT could crash the Aspen engine** — flashing a bone-dry salt sludge hits
+  an Aspen-side pure-component data gap. Sludge is now **wet** (`SludgeSolids`
+  parameter, default 20 wt %) — honest physics and no crash.
+
+### Verification on the shipped build
+
+- **Live Aspen Plus V14 sweep: 25/25 converged** — every block, a
+  physics-appropriate case each, exact mass balances (1e-9 … 1e-16).
+- **DWSIM host suite: ALL CHECKS PASSED (25 blocks)** — including a new salt
+  end-to-end: 35,000 ppm feed → 181 ppm permeate, reported recovery equal to the
+  stream value, mass balance 1.7e-16.
+- Unit suite **382/382**; README refreshed to the verified state.
+
 ## v1.0.0 — 2026-07-17 (first public release)
 
 - **25 CAPE-OPEN unit operations** across five families (membranes, thermal

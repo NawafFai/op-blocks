@@ -4,7 +4,7 @@
 
 [English](README.md) · **العربية**
 
-![version](https://img.shields.io/badge/version-1.1.1-29ABE2)
+![version](https://img.shields.io/badge/version-1.1.2-29ABE2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20%7C%20DWSIM-1B3A5C)
@@ -77,7 +77,7 @@ Aspen Plus V14** وحزمة تشغيل كاملة على محرّك DWSIM الح
 
 ## التثبيت (3 خطوات)
 
-1. **حمّل** أحدث إصدار (`OPBlocks_Setup.exe`، أو `OPBlocks-1.1.1-portable.zip`
+1. **حمّل** أحدث إصدار (`OPBlocks_Setup.exe`، أو `OPBlocks-1.1.2-portable.zip`
    وفكّ ضغطه في أي مكان).
 2. **سجّل** البلوكات (طلب صلاحية مدير واحد): شغّل **OP-Blocks Manager** واضغط
    *Install all* (أو *Enable in DWSIM* للمحوّل الأصلي في DWSIM)، أو من PowerShell:

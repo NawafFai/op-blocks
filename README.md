@@ -2,7 +2,7 @@
 
 **English** · [العربية](README.ar.md)
 
-![version](https://img.shields.io/badge/version-1.1.1-29ABE2)
+![version](https://img.shields.io/badge/version-1.1.2-29ABE2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20%7C%20DWSIM-1B3A5C)
@@ -77,7 +77,7 @@ engineering warnings, and a "Model & References" section in the block report.
 ## Install (3 steps)
 
 1. **Download** the latest release (`OPBlocks_Setup.exe`, or
-   `OPBlocks-1.1.1-portable.zip` and extract anywhere).
+   `OPBlocks-1.1.2-portable.zip` and extract anywhere).
 2. **Register** the blocks (one UAC prompt): run the **OP-Blocks Manager** and
    click *Install all* (or *Enable in DWSIM* for the native DWSIM adapter), or from PowerShell:
    `powershell -ExecutionPolicy Bypass -File scripts\register-all-blocks.ps1`
