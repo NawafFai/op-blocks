@@ -23,6 +23,9 @@ namespace OPBlocks.DwsimHostTest
             Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\DWSIM");
 
         private static int _failures;
+        private static global::DWSIM.Automation.Automation2 _auto;
+        private static global::DWSIM.Automation.Automation2 Auto()
+            => _auto ?? (_auto = new global::DWSIM.Automation.Automation2());
 
         [STAThread]
         private static int Main(string[] args)
@@ -109,9 +112,12 @@ namespace OPBlocks.DwsimHostTest
             foreach (IExternalUnitOperation uo in instances)
                 ExerciseBlock(uo);
 
-            // --- end-to-end: real DWSIM engine, headless, one full calculation ---
+            // --- end-to-end: real DWSIM engine, headless, full calculations ---
             if (!args.Contains("--no-e2e"))
+            {
                 RunEndToEnd(asm);
+                RunEndToEndRO(asm);
+            }
 
             Console.WriteLine();
             if (_failures == 0)
@@ -134,7 +140,7 @@ namespace OPBlocks.DwsimHostTest
             Console.WriteLine("-- end-to-end calculation (DWSIM engine, headless) --");
             try
             {
-                var interf = new global::DWSIM.Automation.Automation2();
+                var interf = Auto();
                 var sim = interf.CreateFlowsheet();
                 sim.AddCompound("Water");
 
@@ -218,12 +224,133 @@ namespace OPBlocks.DwsimHostTest
                     Check(false, "e2e: block-reported outlet matches host stream", "result row not found");
                 }
 
-                interf.ReleaseResources();
+                // shared Automation2 stays alive for the RO e2e
             }
             catch (Exception ex)
             {
                 Check(false, "e2e: engine run", Root(ex).GetType().Name + ": " + Root(ex).Message);
             }
+        }
+
+        /// <summary>
+        /// Second e2e: a SALTWATER block (OP-RO) with Water + sodium chloride on a
+        /// salt-capable package — brine feed in, permeate + concentrate out. Proves
+        /// the wrapped physics honestly separates salt inside the real DWSIM engine
+        /// (mass balance, rejection, recovery), not just the pure-water EvapPond path.
+        /// </summary>
+        private static void RunEndToEndRO(Assembly adapterAsm)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- end-to-end RO (salt water, DWSIM engine, headless) --");
+            try
+            {
+                var interf = Auto();
+                var sim = interf.CreateFlowsheet();
+                sim.AddCompound("Water");
+
+                // pick the salt by what THIS DWSIM install actually ships
+                var fbPre = (global::DWSIM.FlowsheetBase.FlowsheetBase)sim;
+                string saltName = fbPre.AvailableCompounds.Keys
+                    .FirstOrDefault(k => k.ToLower().Contains("sodium") && k.ToLower().Contains("chloride"));
+                Check(saltName != null, "e2e-ro: salt compound available",
+                      saltName ?? "no 'sodium chloride' in AvailableCompounds");
+                if (saltName == null) { interf.ReleaseResources(); return; }
+                sim.AddCompound(saltName);
+                Console.WriteLine("  salt compound: " + saltName);
+
+                var feed = (global::DWSIM.Thermodynamics.Streams.MaterialStream)
+                    sim.AddObject(global::DWSIM.Interfaces.Enums.GraphicObjects.ObjectType.MaterialStream, 0, 50, "FEED");
+                var conc = (global::DWSIM.Thermodynamics.Streams.MaterialStream)
+                    sim.AddObject(global::DWSIM.Interfaces.Enums.GraphicObjects.ObjectType.MaterialStream, 300, 20, "CONC");
+                var perm = (global::DWSIM.Thermodynamics.Streams.MaterialStream)
+                    sim.AddObject(global::DWSIM.Interfaces.Enums.GraphicObjects.ObjectType.MaterialStream, 300, 80, "PERM");
+
+                var pps = sim.GetAvailablePropertyPackages();
+                string ppname = pps.FirstOrDefault(p => p.ToLower().Contains("nrtl"))
+                             ?? pps.FirstOrDefault(p => p.ToLower().Contains("raoult"))
+                             ?? pps.First(p => !p.ToLower().Contains("steam"));
+                sim.CreateAndAddPropertyPackage(ppname);
+                Console.WriteLine("  property package: " + ppname);
+
+                Type roType = adapterAsm.ExportedTypes.First(t => t.Name == "ReverseOsmosisDW");
+                var ro = (IExternalUnitOperation)Activator.CreateInstance(roType);
+                var fb = (global::DWSIM.FlowsheetBase.FlowsheetBase)sim;
+                fb.AddObjectToSurface(global::DWSIM.Interfaces.Enums.GraphicObjects.ObjectType.External,
+                                      150, 50, "RO1", "", ro, false);
+                var roSim = (ISimulationObject)ro;
+                roSim.SetFlowsheet(sim);
+                roSim.GraphicObject.Owner = roSim;
+                ro.CreateConnectors();
+
+                roSim.ConnectFeedMaterialStream(feed, 0);
+                roSim.ConnectProductMaterialStream(conc, 0);   // Concentrate (declared first)
+                roSim.ConnectProductMaterialStream(perm, 1);   // Permeate
+
+                // seawater-like feed: 3.5 wt% NaCl -> mole fractions
+                double xs = 0.035 / 58.44, xw = 0.965 / 18.015;
+                double tot = xs + xw;
+                feed.SetOverallComposition(new[] { xw / tot, xs / tot });
+                feed.SetTemperature(298.15);
+                feed.SetPressure(60e5);        // 60 bar
+                feed.SetMassFlow(1.0);         // kg/s
+
+                List<Exception> errors = interf.CalculateFlowsheet2(sim);
+                Check(errors == null || errors.Count == 0, "e2e-ro: flowsheet solved",
+                      errors != null && errors.Count > 0 ? Root(errors[0]).Message : "");
+
+                double fIn = feed.GetMassFlow(), fConc = conc.GetMassFlow(), fPerm = perm.GetMassFlow();
+                Console.WriteLine("  feed=" + fIn.ToString("0.####") + " kg/s  concentrate=" +
+                                  fConc.ToString("0.####") + "  permeate=" + fPerm.ToString("0.####"));
+                Check(fPerm > 0.10 * fIn, "e2e-ro: meaningful permeate produced", fPerm.ToString("0.####") + " kg/s");
+                Check(Math.Abs(fIn - fConc - fPerm) < 1e-4 * Math.Max(fIn, 1e-12),
+                      "e2e-ro: mass balance closes", "err=" + Math.Abs(fIn - fConc - fPerm).ToString("0.#E+0"));
+
+                // honest separation: permeate salt fraction far below feed's
+                double sPerm = CompoundMassFlow(perm, saltName), sFeed = CompoundMassFlow(feed, saltName);
+                double wsPerm = fPerm > 0 ? sPerm / fPerm : 1.0, wsFeed = fIn > 0 ? sFeed / fIn : 0.0;
+                Console.WriteLine("  feed TDS=" + (wsFeed * 1e6).ToString("0") + " ppm  permeate TDS=" +
+                                  (wsPerm * 1e6).ToString("0") + " ppm");
+                Check(wsFeed > 0.03, "e2e-ro: salt actually present in feed", (wsFeed * 1e6).ToString("0") + " ppm");
+                Check(wsPerm < 0.10 * wsFeed, "e2e-ro: salt rejected (permeate TDS << feed TDS)",
+                      (wsPerm * 1e6).ToString("0") + " vs " + (wsFeed * 1e6).ToString("0") + " ppm");
+
+                // block-reported recovery == stream ratio (any drift = defect)
+                object rep = null;
+                foreach (string cand in new[] { "Water recovery [%]", "Water recovery", "Recovery [%]", "Recovery" })
+                {
+                    rep = roSim.GetPropertyValue(cand);
+                    if (rep is double) break;
+                }
+                if (rep is double repPct)
+                {
+                    double waterPerm = fPerm - sPerm, waterFeed = fIn - sFeed;
+                    double streamPct = 100.0 * waterPerm / Math.Max(waterFeed, 1e-12);
+                    Check(Math.Abs(repPct - streamPct) < 0.5, "e2e-ro: reported recovery matches streams",
+                          repPct.ToString("0.##") + " vs " + streamPct.ToString("0.##") + " %");
+                }
+                else
+                {
+                    Check(false, "e2e-ro: reported recovery matches streams", "recovery result not found");
+                }
+
+                interf.ReleaseResources();
+            }
+            catch (Exception ex)
+            {
+                Check(false, "e2e-ro: engine run", Root(ex).GetType().Name + ": " + Root(ex).Message);
+                Console.WriteLine("  trace: " + (Root(ex).StackTrace ?? "").Split('\n').FirstOrDefault());
+            }
+        }
+
+        private static double CompoundMassFlow(global::DWSIM.Thermodynamics.Streams.MaterialStream ms, string compound)
+        {
+            try
+            {
+                var c = ms.Phases[0].Compounds[compound];
+                double mf = c.MassFraction.GetValueOrDefault();
+                return mf * ms.GetMassFlow();
+            }
+            catch { return 0.0; }
         }
 
         private static void ExerciseBlock(IExternalUnitOperation uo)
