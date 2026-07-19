@@ -4,6 +4,19 @@ using CapeOpen;
 namespace OPBlocks.Core
 {
     /// <summary>
+    /// Which single phase an outlet stream should be flashed into. Our blocks
+    /// produce single-phase outlets, so we tell the host up front instead of
+    /// letting it attempt a multi-phase (vapour / free-water) split over a brine.
+    /// </summary>
+    public enum PhaseHint
+    {
+        /// <summary>A subcooled liquid brine / product water (the common case).</summary>
+        Liquid,
+        /// <summary>A pure-water vapour (e.g. an evaporation block's vapour port).</summary>
+        Vapor
+    }
+
+    /// <summary>
     /// The single funnel for every thermodynamic property call (spec §5,
     /// Requirement R4). Blocks NEVER hardcode enthalpy, density, fugacity or VLE;
     /// they ask a <see cref="ThermoProxy"/>, which delegates to the host Material
@@ -206,8 +219,18 @@ namespace OPBlocks.Core
             Guard("PH flash", () => { _mo.CalcEquilibrium("PH", null); return 0; });
         }
 
-        /// <summary>Sets an outlet at specified T,P and flashes (TP flash).</summary>
-        public void SetOutletTP(double[] componentMoleFlows, double temperatureK, double pressurePa)
+        /// <summary>
+        /// Sets an outlet at specified T,P and flashes (TP flash). Our outlet
+        /// streams are single-phase (a subcooled liquid brine, or the pure-water
+        /// vapour/condensate of an evaporation block), so the flash is restricted to
+        /// the known phase — see <see cref="Flash11"/>. This keeps the host from
+        /// spinning up a vapour / free-water phase over the brine, which on a
+        /// pure-water steam-table method (Aspen STEAMNBS / STEAM-TA) raises the
+        /// "steam tables used when components other than water present / water
+        /// absent" warnings and flags the block with a physical-property error.
+        /// </summary>
+        public void SetOutletTP(double[] componentMoleFlows, double temperatureK, double pressurePa,
+                                PhaseHint phase = PhaseHint.Liquid)
         {
             if (_mat11 != null)
             {
@@ -218,7 +241,7 @@ namespace OPBlocks.Core
                     _mat11.SetOverallProp("pressure", null, new[] { pressurePa });
                     return 0;
                 });
-                Flash11("TP");
+                Flash11("TP", phase);
                 return;
             }
             Guard("set outlet stream", () =>
@@ -474,14 +497,13 @@ namespace OPBlocks.Core
             _mat11.SetOverallProp("totalFlow", "mole", new[] { total });
         }
 
-        private void Flash11(string kind)
+        private void Flash11(string kind, PhaseHint phase = PhaseHint.Liquid)
         {
             Guard(kind == "TP" ? "TP flash" : "PH flash", () =>
             {
                 if (_equil11 == null)
                     throw new CapeComputationException(
                         "Stream on port '" + _portName + "' has no equilibrium routine (Thermo 1.1).");
-                AllowAllPhases11();
                 object spec1, spec2;
                 if (kind == "TP")
                 {
@@ -493,9 +515,59 @@ namespace OPBlocks.Core
                     spec1 = new[] { "pressure", null, "Overall" };
                     spec2 = new[] { "enthalpy", null, "Overall" };
                 }
+
+                // Preferred path: tell the equilibrium routine the outlet is a single
+                // known phase, so it never forms a vapour / free-water phase over the
+                // brine. That is what avoids the pure-water steam-table calls on a
+                // salt stream (Aspen IAPWS95) and the "water absent" severe error on
+                // the would-be vapour phase. Fall back to an all-phases flash if the
+                // host rejects the restriction (some packages require the full list).
+                if (TryRestrictPhase11(phase))
+                {
+                    try
+                    {
+                        _equil11.CalcEquilibrium(spec1, spec2, "Unspecified");
+                        return 0;
+                    }
+                    catch { /* restricted flash refused — retry with all phases below */ }
+                }
+                AllowAllPhases11();
                 _equil11.CalcEquilibrium(spec1, spec2, "Unspecified");
                 return 0;
             });
+        }
+
+        /// <summary>
+        /// Marks only the requested phase (liquid or vapour) present before a flash,
+        /// so the equilibrium routine puts the whole outlet in that single phase.
+        /// Returns false (and changes nothing) if the host does not expose a matching
+        /// phase label, so the caller can fall back to an all-phases flash.
+        /// </summary>
+        private bool TryRestrictPhase11(PhaseHint hint)
+        {
+            try
+            {
+                string[] labels = null;
+                if (_phases11 != null)
+                {
+                    object lab = null, agg = null, key = null;
+                    _phases11.GetPhaseList(ref lab, ref agg, ref key);
+                    labels = ToStringArray(lab);
+                }
+                if (labels == null || labels.Length == 0) return false;
+
+                string want = hint == PhaseHint.Vapor ? "vap" : "liq";
+                var pick = new System.Collections.Generic.List<string>();
+                foreach (string l in labels)
+                    if (l != null && l.ToLowerInvariant().Contains(want)) pick.Add(l);
+                if (pick.Count == 0) return false;
+
+                var status = new CapePhaseStatus[pick.Count];
+                for (int i = 0; i < status.Length; i++) status[i] = CapePhaseStatus.CAPE_UNKNOWNPHASESTATUS;
+                new CapeThermoMaterialWrapper(_raw).SetPresentPhases(pick.ToArray(), status);
+                return true;
+            }
+            catch { return false; }
         }
 
         private void AllowAllPhases11()

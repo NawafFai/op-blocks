@@ -105,6 +105,7 @@ namespace OPBlocks.Desalination
             bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — TDS results are unavailable this run.");
+            if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, tK);
 
             double feedM3s = VolumetricM3S(feed, MoleDerivedKgS(f, mw), "feed", haveMw);
 
@@ -473,6 +474,7 @@ namespace OPBlocks.Desalination
 
             double[] mw;
             bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
+            if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, feed.Temperature);
             double feedKgS;
             if (!feed.TryGetTotalMassFlowKgS(out feedKgS) || feedKgS <= 1e-30)
             {

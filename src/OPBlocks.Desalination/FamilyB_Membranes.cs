@@ -134,6 +134,7 @@ namespace OPBlocks.Desalination
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — " +
                               "TDS and salt-rejection results are unavailable this run.");
+            if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, tK);
 
             var spec = new RoModel.Spec
             {
@@ -393,6 +394,7 @@ namespace OPBlocks.Desalination
             bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — TDS and salt-rejection results are unavailable this run.");
+            if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, tK);
 
             // per-component passage: multivalent ions rejected strongly, monovalent weakly
             double multiPass = 1.0 - ProcessOps.Clamp(R("MultivalRejection"), 0, 100) / 100.0;
@@ -616,6 +618,7 @@ namespace OPBlocks.Desalination
             bool haveMw = feed.TryGetMolecularWeightsGmol(out mw);
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — TDS results are unavailable this run.");
+            if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, tK);
 
             // dissolved salts pass freely (UF has no osmotic barrier); everything
             // else non-water is a macro solute subject to the size-exclusion rejection

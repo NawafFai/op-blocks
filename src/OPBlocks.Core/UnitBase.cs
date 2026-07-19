@@ -113,6 +113,45 @@ namespace OPBlocks.Core
             if (!_reportWarnings.Contains(text)) _reportWarnings.Add(text);
         }
 
+        /// <summary>
+        /// Emits ONE clear, actionable warning when the host property method models
+        /// pure water only (a steam table) and so cannot represent the dissolved
+        /// salt in this feed — the root cause of Aspen's "steam tables used when
+        /// components other than water present / water absent" messages and the
+        /// block being flagged with a physical-property error. The block's own
+        /// results stay correct; only host-computed stream properties are affected.
+        /// No-op on a salt-capable method (IDEAL / NRTL / ELECNRTL). Call once per
+        /// <see cref="Compute"/> with the feed stream and its overall mole flows.
+        /// </summary>
+        protected void WarnIfPureWaterMethod(ThermoProxy feed, double[] moleFlows,
+                                             int waterIndex, double[] mwGmol, double tempK)
+        {
+            if (feed == null || moleFlows == null || mwGmol == null || waterIndex < 0) return;
+            double rho;
+            if (!feed.TryGetMassDensityKgM3(out rho)) return;
+
+            double totalKg = 0, saltKg = 0;
+            for (int i = 0; i < moleFlows.Length; i++)
+            {
+                double kg = moleFlows[i] * (i < mwGmol.Length ? mwGmol[i] : 0.0) / 1000.0;
+                totalKg += kg;
+                if (i != waterIndex) saltKg += kg;
+            }
+            if (totalKg <= 1e-30) return;
+            double saltMassFrac = saltKg / totalKg;
+            if (!ProcessOps.LooksLikePureWaterMethod(rho, tempK, saltMassFrac)) return;
+
+            ReportWarning(
+                "The selected property method appears to model PURE WATER only (it returns a " +
+                "near-pure-water density for this " + (saltMassFrac * 1e6).ToString("0") +
+                " ppm brine). Dissolved salt is then ignored in host-computed stream properties " +
+                "(enthalpy, density) and the host will warn about steam tables and may flag this " +
+                "block with a physical-property error. The block's OWN results (recovery, TDS, " +
+                "flows, energy) remain correct. For accurate stream properties choose a salt-capable " +
+                "method such as IDEAL, NRTL, or an electrolyte method (ELECNRTL). Pure-water steam " +
+                "tables (Aspen STEAMNBS / STEAM-TA; DWSIM Steam Tables) cannot represent brine.");
+        }
+
         public sealed override void OnCalculate()
         {
             _results.Clear();

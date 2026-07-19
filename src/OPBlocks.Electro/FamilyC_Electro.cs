@@ -104,6 +104,7 @@ namespace OPBlocks.Electro
             bool haveMw = dIn.TryGetMolecularWeightsGmol(out mw);
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — TDS results are unavailable this run.");
+            if (haveMw) WarnIfPureWaterMethod(dIn, df, wi, mw, Td);
 
             var spec = new EdModel.Spec
             {

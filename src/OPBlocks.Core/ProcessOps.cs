@@ -100,6 +100,39 @@ namespace OPBlocks.Core
             return mmHg * 133.322;
         }
 
+        /// <summary>
+        /// Density of PURE liquid water [kg/m3] vs temperature (Kell 1975, valid
+        /// 0–100 °C, ~0.01% accuracy). Used only to recognise a pure-water property
+        /// method — real brine density always comes from the host package.
+        /// </summary>
+        public static double PureWaterDensityKgM3(double tempK)
+        {
+            double t = Clamp(tempK - 273.15, 0.0, 100.0);
+            return (999.83952 + 16.945176 * t - 7.9870401e-3 * t * t
+                    - 46.170461e-6 * t * t * t + 105.56302e-9 * t * t * t * t
+                    - 280.54253e-12 * t * t * t * t * t) / (1.0 + 16.879850e-3 * t);
+        }
+
+        /// <summary>
+        /// True when the host property method appears to model PURE WATER ONLY: it
+        /// returns a density within 0.6% of pure water for a clearly saline brine
+        /// (≥1% dissolved solids). That is the signature of a steam-table method
+        /// (Aspen STEAMNBS / STEAM-TA, DWSIM Steam Tables), which cannot represent
+        /// dissolved salt and makes the host emit "steam tables used when components
+        /// other than water present" warnings. A real salt-aware method (IDEAL,
+        /// NRTL, ELECNRTL) returns a brine density several percent above pure water,
+        /// so this never fires on a suitable method. Returns false when it cannot
+        /// tell (no density, too little salt).
+        /// </summary>
+        public static bool LooksLikePureWaterMethod(
+            double packageDensityKgM3, double tempK, double saltMassFraction)
+        {
+            if (saltMassFraction < 0.01) return false;                 // <1% salt: indistinguishable
+            if (packageDensityKgM3 < 100.0) return false;              // no/garbage density
+            double rhoPure = PureWaterDensityKgM3(tempK);
+            return Math.Abs(packageDensityKgM3 - rhoPure) / rhoPure < 0.006;
+        }
+
         /// <summary>Approximate molarity [mol/L] of a solute given solute and water mole flows (ρ≈1000).</summary>
         public static double MolarityMolL(double soluteMol, double waterMol)
         {
