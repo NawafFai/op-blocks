@@ -30,3 +30,6 @@ icons/png/_rasterize.log
 # Python caches
 __pycache__/
 *.pyc
+
+# Living handoff doc stays LOCAL ONLY (owner keeps it at Documents\OPBlocks-HANDOFF.md)
+HANDOFF.md
