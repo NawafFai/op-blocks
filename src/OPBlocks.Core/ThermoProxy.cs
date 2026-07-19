@@ -69,7 +69,21 @@ namespace OPBlocks.Core
             _portName = portName;
             _raw = connectedObject;
 
-            // Thermo 1.1 first — this is what Aspen Plus V14 supplies.
+            // Thermo 1.0 FIRST. DWSIM material streams implement BOTH generations,
+            // and the native DWSIM adapter's outlet bridge is built on the 1.0
+            // SetProp protocol — preferring 1.1 there silently produced ZERO-flow
+            // outlets (found 2026-07-19 by the DwsimHostTest e2e: the block computed
+            // correctly but the host streams stayed empty). Aspen Plus V14 materials
+            // are 1.1-ONLY (the 1.0 wrapper refuses them), so Aspen still lands on
+            // the 1.1 branch below. Order = proven path per host, no guessing.
+            try
+            {
+                _mo = new MaterialObjectWrapper(connectedObject);
+                return;
+            }
+            catch { /* not a Thermo 1.0 material — try 1.1 */ }
+
+            // Thermo 1.1 — what Aspen Plus V14 supplies.
             _mat11 = connectedObject as ICapeThermoMaterial;
             if (_mat11 != null)
             {
@@ -84,17 +98,9 @@ namespace OPBlocks.Core
                 return;
             }
 
-            try
-            {
-                _mo = new MaterialObjectWrapper(connectedObject);
-            }
-            catch (Exception ex)
-            {
-                throw new CapeComputationException(
-                    "Stream on port '" + portName + "' does not expose a CAPE-OPEN material object " +
-                    "(neither Thermo 1.1 ICapeThermoMaterial nor Thermo 1.0 ICapeThermoMaterialObject; " +
-                    "wrapper said: " + ex.Message + ").", ex);
-            }
+            throw new CapeComputationException(
+                "Stream on port '" + portName + "' does not expose a CAPE-OPEN material object " +
+                "(neither Thermo 1.0 ICapeThermoMaterialObject nor Thermo 1.1 ICapeThermoMaterial).");
         }
 
         /// <summary>True when this stream talks CAPE-OPEN Thermo 1.1.</summary>

@@ -183,12 +183,14 @@ namespace OPBlocks.DwsimHostTest
 
                 // Quantitative guard for the parameter-unit chain: with defaults
                 // (10,000 m2, 600 W/m2, air 30 C, RH 40%, wind 3 m/s, feed 30 C)
-                // the Dalton model gives ~0.24 kg/s evaporation. The v1.0 defect
-                // (DimensionedValue treating authored values as SI) fed the model
-                // -243 C air and produced ~0.34 kg/s — this catches any regression
-                // anywhere in the parameter->physics chain.
-                Check(fVap > 0.20 && fVap < 0.30,
-                      "e2e: evaporation rate quantitatively correct (~0.24 kg/s)",
+                // the recalibrated Dalton model (CoeffA 1.2e-8, CoeffB 2.5e-9,
+                // SolarHeating 0.012 — arid ~7.6 mm/day) gives ~0.88 kg/s
+                // (75.97 m3/day, the SAME figure verified live in Aspen V14).
+                // The v1.0 defect (DimensionedValue treating authored values as SI)
+                // fed the model -243 C air — this catches any regression anywhere
+                // in the parameter->physics chain.
+                Check(fVap > 0.70 && fVap < 1.10,
+                      "e2e: evaporation rate quantitatively correct (~0.88 kg/s)",
                       fVap.ToString("0.####") + " kg/s");
 
                 // results surfaced as host properties

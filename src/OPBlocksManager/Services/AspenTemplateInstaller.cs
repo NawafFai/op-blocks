@@ -36,7 +36,10 @@ namespace OPBlocksManager.Services
                 Success = n > 0,
                 Count = n,
                 Message = n > 0
-                    ? $"CAPE-OPEN template installed to {n} Aspen folder(s). In Aspen: File ▸ New ▸ User ▸ ONE PROCESS."
+                    ? $"Installed to {n} Aspen folder(s). Start saltwater cases from File ▸ New ▸ User ▸ ONE PROCESS — " +
+                      "it opens with the CAPE-OPEN blocks already enabled AND a salt-capable method (ELECNRTL), so you skip " +
+                      "Manage Libraries and avoid the pure-water steam tables that error on brine. (Aspen enables model " +
+                      "libraries per-simulation, so this template is the one-click path.)"
                     : "No Aspen template folder found."
             };
         }
