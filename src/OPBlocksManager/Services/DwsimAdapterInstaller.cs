@@ -124,12 +124,22 @@ namespace OPBlocksManager.Services
             return files;
         }
 
-        /// <summary>Names this installer owns in unitops (so Remove never touches unrelated plug-ins).</summary>
+        /// <summary>
+        /// Names this installer owns in unitops (so Remove never touches unrelated
+        /// plug-ins): our OPBlocks*.dll, plus CapeOpen.dll ONLY when our adapter is
+        /// (or was) present — nothing else could have put it there, but if the user
+        /// already deleted our files by hand we leave a stray CapeOpen.dll alone
+        /// rather than guess.
+        /// </summary>
         private static IEnumerable<string> ManagedFileNames(string unitops)
         {
+            bool oursPresent = false;
             foreach (string f in Directory.GetFiles(unitops, "OPBlocks*.dll", SearchOption.TopDirectoryOnly))
+            {
+                oursPresent = true;
                 yield return Path.GetFileName(f);
-            yield return "CapeOpen.dll";
+            }
+            if (oursPresent) yield return "CapeOpen.dll";
         }
 
         /// <summary>
