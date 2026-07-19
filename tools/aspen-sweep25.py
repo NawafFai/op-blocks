@@ -16,7 +16,7 @@ os.makedirs(OUT, exist_ok=True)
 COMP_DEFS = {
     "WATER": "H2O", "NACL": "NACL", "LICL": "LICL", "MGCL2": "MGCL2",
     "NAOH": "NAOH", "CL2": "CL2", "H2": "H2", "O2": "O2", "N2": "N2",
-    "CO2": "CO2", "TOLUENE": "C7H8",
+    "CO2": "CO2", "TOLUENE": "C7H8", "NA2CO3": "NA2CO3",
 }
 
 # code, clsid, [(port, stream, {comp: kg/hr}, T C, P bar)] (inlets), [(port, stream)] outlets
@@ -85,8 +85,8 @@ CASES = [
    [("MOTHERLIQUOR","OU1"),("CRYSTALS","OU2")]),
  ("OP-PPT", "D820BA95-3E24-4E85-81EF-6E8DF1F503C3",
    [("FEED","IN1",{"WATER":1000,"MGCL2":2},25,1.5),
-    ("REAGENT","IN2",{"WATER":100,"NAOH":5},25,1.5)],
-   [("TREATED","OU1"),("SLUDGE","OU2")]),
+    ("REAGENT","IN2",{"WATER":100,"NA2CO3":5},25,1.5)],
+   [("TREATED","OU1"),("SLUDGE","OU2")]),  # soda softening; NB: NAOH as a FEED component crashes this V14 databank (DHVLWT missing) on ANY flowsheet — Aspen-side, see HANDOFF
  ("OP-GAC", "7720A360-E026-4976-8F81-B8DB159F8B8A",
    [("FEED","IN1",{"WATER":1000,"TOLUENE":0.5},25,1.5)],
    [("TREATED","OU1")]),
