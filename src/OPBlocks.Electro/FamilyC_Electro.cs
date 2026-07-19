@@ -515,11 +515,18 @@ namespace OPBlocks.Electro
                     "Specific energy ({0:0.##} kWh/kg Cl2) is above the membrane-cell band (2.3-2.7) — " +
                     "check the cell voltage and current efficiency.", x.SecKWhKgCl2));
 
+            // Water bookkeeping so mass closes exactly: the depleted brine gives up
+            // the drag water crossing with Na+ AND (if drag doesn't cover it) the
+            // cathode-consumed water; the catholyte keeps only drag − consumed as
+            // liquid. Net system water drop = 2 H2O per Cl2 — the mass that
+            // reappears as H2 + the OH inside the molecular NaOH product.
+            double waterFromDep = Math.Max(x.WaterCrossMolS, x.WaterConsumedMolS);
+            double catWater = Math.Max(0, x.WaterCrossMolS - x.WaterConsumedMolS);
             var depF = (double[])f.Clone();
             depF[naclI] -= x.NaClConsMolS;
-            if (wi >= 0) depF[wi] = Math.Max(0, depF[wi] - x.WaterToCatholyteMolS);
+            if (wi >= 0) depF[wi] = Math.Max(0, depF[wi] - waterFromDep);
             var catF = new double[f.Length]; catF[naohI] = x.NaOHMolS;
-            if (wi >= 0) catF[wi] = x.WaterToCatholyteMolS;                    // caustic solution water
+            if (wi >= 0) catF[wi] = catWater;                                  // caustic solution water
             var cl2F = new double[f.Length]; cl2F[cl2I] = x.Cl2MolS;
             var h2F = new double[f.Length]; h2F[h2I] = x.H2MolS;
 
@@ -549,7 +556,8 @@ namespace OPBlocks.Electro
             sb.AppendLine("  Membrane-cell brine electrolysis (Faradaic):");
             sb.AppendLine("    anode  2 Cl- -> Cl2 + 2 e-;  cathode  2 H2O + 2 e- -> H2 + 2 OH-");
             sb.AppendLine("    N_Cl2 = eta * I / (2 F);  N_H2 = N_Cl2;  N_NaOH = 2 N_Cl2;");
-            sb.AppendLine("    2 NaCl consumed per Cl2; Na+ crosses the membrane with water drag.");
+            sb.AppendLine("    2 NaCl and 2 H2O consumed per Cl2 (the cathode water becomes H2 +");
+            sb.AppendLine("    the OH of the NaOH product); Na+ crosses the membrane with drag water.");
             sb.AppendLine("  Production capped by the NaCl actually fed (brine-limited warning).");
             sb.AppendLine("  SEC = V*I / m_Cl2; at 3.1 V / 96% -> ~2.44 kWh/kg Cl2, inside the");
             sb.AppendLine("    published membrane-cell band 2.3-2.7 kWh/kg Cl2.");

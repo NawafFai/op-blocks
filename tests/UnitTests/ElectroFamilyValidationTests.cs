@@ -310,6 +310,35 @@ namespace OPBlocks.UnitTests
             TestKit.Close(Feed[1], dep[1] + 2.0 * cl[3], "chlorine balance");
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void TotalMass_Closes_AcrossAllFiveStreams(bool thermo11)
+        {
+            // Regression net for the 2026-07-19 defect: the cathode's 2 H2O per Cl2
+            // were never deducted while NaOH + H2 were created, so the four outlets
+            // carried ~7% MORE mass than the feed (caught live by the Aspen 25-block
+            // sweep). Element balances alone cannot see it — only total mass can.
+            Rig rig = BuildRig(thermo11);
+            rig.Block.Calculate();
+
+            double MassKgS(double[] fl)
+            {
+                double kg = 0;
+                for (int i = 0; i < fl.Length; i++) kg += fl[i] * Mw[i] / 1000.0;
+                return kg;
+            }
+
+            double inKg = MassKgS(Feed);
+            double outKg = MassKgS(TestKit.FlowsOf(rig.Dep)) + MassKgS(TestKit.FlowsOf(rig.Cat))
+                         + MassKgS(TestKit.FlowsOf(rig.Cl)) + MassKgS(TestKit.FlowsOf(rig.H));
+            // 1e-5 relative: a rounded MW table closes 2NaCl+2H2O = Cl2+H2+2NaOH only
+            // to ~3.5e-4 g per mol Cl2 (~2e-6 rel here) — physics, not a defect. The
+            // regression target (created mass, 7e-2 rel) fails this by 4,000x.
+            Assert.True(Math.Abs(inKg - outKg) < 1e-5 * Math.Max(inKg, 1.0),
+                        "total mass must close: in " + inKg + " kg/s vs out " + outKg + " kg/s");
+        }
+
         [Fact]
         public void Faraday_ExactAnchor()
         {

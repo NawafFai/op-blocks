@@ -215,7 +215,8 @@ namespace OPBlocks.Core
         public struct Perf
         {
             public double Cl2MolS, H2MolS, NaOHMolS, NaClConsMolS;
-            public double WaterToCatholyteMolS;   // drag + cathode consumption source
+            public double WaterCrossMolS;      // electro-osmotic drag crossing with Na+ (stays liquid)
+            public double WaterConsumedMolS;   // electrolyzed at the cathode: 2 H2O -> H2 + 2 OH-
             public double FaradaicCl2MolS;
             public bool BrineLimited;
             public double PowerKW;
@@ -227,15 +228,28 @@ namespace OPBlocks.Core
             var p = new Perf();
             double eff = ProcessOps.Clamp(s.CurrentEffPct, 0, 100) / 100.0;
             p.FaradaicCl2MolS = ProcessOps.FaradayMoles(s.CurrentA, 2, eff);
-            p.Cl2MolS = Math.Min(p.FaradaicCl2MolS, Math.Max(0, naclFeedMolS) * 0.99 / 2.0);
+
+            // Production caps: the NaCl actually fed (2 per Cl2) AND the water
+            // actually fed — each Cl2 takes 2 H2O at the cathode plus the drag
+            // water crossing with its 2 Na+ (keeps the depleted brine physical).
+            double dragPerCl2 = 2.0 * Math.Max(0, s.WaterTransport);
+            double maxByNaCl = Math.Max(0, naclFeedMolS) * 0.99 / 2.0;
+            double maxByWater = Math.Max(0, waterFeedMolS) * 0.9 / (2.0 + dragPerCl2);
+            p.Cl2MolS = Math.Min(p.FaradaicCl2MolS, Math.Min(maxByNaCl, maxByWater));
             p.BrineLimited = p.Cl2MolS < p.FaradaicCl2MolS * 0.999;
+
             p.H2MolS = p.Cl2MolS;
             p.NaOHMolS = 2.0 * p.Cl2MolS;
             p.NaClConsMolS = 2.0 * p.Cl2MolS;
-            // water leaving the anolyte: electro-osmotic drag with Na+ plus cathode consumption
-            double drag = p.NaOHMolS * Math.Max(0, s.WaterTransport);
-            double cathode = p.H2MolS;                       // 2 H2O per H2, but 2 OH- return as NaOH solution water — net 1
-            p.WaterToCatholyteMolS = Math.Min(drag + cathode, Math.Max(0, waterFeedMolS) * 0.9);
+
+            // Stoichiometric water bookkeeping (mass closes exactly):
+            //   cathode 2 H2O + 2 e- -> H2 + 2 OH-: the 2 H2O per Cl2 leave the
+            //   water balance for good (their mass reappears as H2 + the OH in the
+            //   molecular NaOH product species) — NOT "net 1": no OH- returns as
+            //   free water. Drag water merely crosses to the catholyte as liquid.
+            p.WaterConsumedMolS = 2.0 * p.Cl2MolS;
+            p.WaterCrossMolS = dragPerCl2 * p.Cl2MolS;
+
             p.PowerKW = s.CellVoltageV * s.CurrentA / 1000.0;
             double cl2KgS = p.Cl2MolS * MwCl2;
             p.SecKWhKgCl2 = cl2KgS > 1e-15 ? p.PowerKW / (cl2KgS * 3600.0) : 0.0;

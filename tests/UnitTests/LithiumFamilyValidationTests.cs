@@ -516,6 +516,31 @@ namespace OPBlocks.UnitTests
             TestKit.AssertMassBalance(new[] { Feed, ReagentAmple }, new[] { t, s }, 3);
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Sludge_IsWet_AtTheConfiguredSolidsContent(bool thermo11)
+        {
+            // Regression net for the 2026-07-19 Aspen engine CRASH: a bone-dry
+            // sludge (pure NaOH has no vapour-pressure data) killed the V14 engine
+            // on the TP flash (RPC failure, isolated live: dry-NaOH crystals crash,
+            // dry-MgCl2 pass, wet NaOH catholyte pass). The sludge must now carry
+            // water at the SludgeSolids setting (default 20 wt% solids).
+            Rig rig = BuildRig(thermo11, ReagentAmple);
+            rig.Block.Calculate();
+
+            double[] s = TestKit.FlowsOf(rig.S);
+            Assert.True(s[0] > 0, "sludge must carry water (wet sludge)");
+            double solidsKg = s[1] * Mw[1] / 1000.0 + s[2] * Mw[2] / 1000.0;
+            double waterKg = s[0] * Mw[0] / 1000.0;
+            double solidsFrac = solidsKg / (solidsKg + waterKg);
+            Assert.InRange(solidsFrac, 0.199, 0.201);   // default SludgeSolids = 20%
+
+            // and the wet split must still close the total mass balance
+            double[] t = TestKit.FlowsOf(rig.T);
+            TestKit.AssertMassBalance(new[] { Feed, ReagentAmple }, new[] { t, s }, 3);
+        }
+
         [Fact]
         public void AmpleReagent_AchievesTarget_StoichConsumption()
         {

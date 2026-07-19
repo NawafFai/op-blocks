@@ -479,6 +479,7 @@ namespace OPBlocks.Lithium
             AddRealParameter("RemovalEfficiency", "Target species removal (kinetic/settling ceiling)", 90, 10, 99.9, "%");
             AddRealParameter("ReagentDose", "Reagent stoichiometric dose (mol reagent per mol target)", 1.1, 0.5, 5, "mol/mol");
             AddRealParameter("pH", "Operating pH (hydroxide softening 10.3-11)", 10.5, 4, 13, "-");
+            AddRealParameter("SludgeSolids", "Sludge solids content (thickened hydroxide sludge 15-40 wt%)", 20, 5, 60, "%");
 
             AddOutputParameter("Removal", "Achieved removal", "%");
             AddOutputParameter("Precipitate", "Precipitate formed", "mol/s");
@@ -542,6 +543,33 @@ namespace OPBlocks.Lithium
                 if (i < sf.Length) sf[i] += cons;                    // consumed reagent precipitates
                 if (i < tf.Length) tf[i] += rf[i] - cons;            // excess stays dissolved
             }
+            // Real sludge is WET (thickened hydroxide sludge ~15-40 wt% solids):
+            // carry the corresponding water from the treated stream into the
+            // sludge. Besides being the honest physics, this keeps the sludge
+            // stream flashable — a bone-dry salt mixture (pure NaOH especially)
+            // has no vapour-pressure data and was proven 2026-07-19 to CRASH the
+            // Aspen V14 engine (RPC failure) when flashed at ambient conditions.
+            double[] mwPpt;
+            if (feed.TryGetMolecularWeightsGmol(out mwPpt) && wiF >= 0)
+            {
+                double solidsKgS = 0;
+                for (int i = 0; i < sf.Length; i++)
+                    if (i != wiF && i < mwPpt.Length) solidsKgS += sf[i] * mwPpt[i] / 1000.0;
+                if (solidsKgS > 1e-30)
+                {
+                    double s = ProcessOps.Clamp(R("SludgeSolids"), 5, 60) / 100.0;
+                    double waterKgS = solidsKgS * (1.0 - s) / s;
+                    double carrierMolS = Math.Min(waterKgS / 0.0180153, 0.9 * Math.Max(0, tf[wiF]));
+                    tf[wiF] -= carrierMolS;
+                    if (wiF < sf.Length) sf[wiF] += carrierMolS;
+                }
+            }
+            else if (ProcessOps.Sum(sf) > 1e-30)
+            {
+                ReportWarning("The property package did not supply molecular weights — the sludge is " +
+                              "reported dry (no carrier water could be computed).");
+            }
+
             treated.SetOutletTP(tf, feed.Temperature, feed.Pressure);
             sludge.SetOutletTP(sf, feed.Temperature, feed.Pressure);
 
