@@ -25,6 +25,7 @@ namespace OPBlocks.Core
         private readonly ErrorProvider _errors = new ErrorProvider();
         private TableLayoutPanel _table;        // input parameters
         private Panel _scroll;
+        private ToolTip _tips;
         private TableLayoutPanel _resultsTable; // output parameters (read-only)
         private Panel _resultsScroll;
         private Label _resultsHint;
@@ -149,12 +150,13 @@ namespace OPBlocks.Core
             // --- tabs: Input | Results ---
             var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(14, 4) };
 
+            _tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 150 };
             var inputPage = new TabPage("Input  /  المدخلات") { BackColor = Color.White };
             _scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(16, 14, 16, 14) };
             _table = NewGrid(4);
-            _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210));
-            _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-            _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+            _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 286));
+            _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+            _table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
             _table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             _scroll.Controls.Add(_table);
             inputPage.Controls.Add(_scroll);
@@ -210,10 +212,14 @@ namespace OPBlocks.Core
             AddHeaderCell(_table, "Parameter", 0);
             AddHeaderCell(_table, "Value", 1);
             AddHeaderCell(_table, "Unit", 2);
-            AddHeaderCell(_table, "Allowed / range", 3, advanceRow: true);
+            AddHeaderCell(_table, "Allowed range", 3, advanceRow: true);
             foreach (CapeParameter p in _unit.Parameters)
                 if (UnitBase.IsInputParameter(p))
+                {
+                    string section = ParamGroups.SectionStartingAt(_unit.BlockCode, p.ComponentName, resultsTab: false);
+                    if (section != null) AddSectionRow(_table, section, 4);
                     AddParameterRow(p);
+                }
             _table.ResumeLayout();
 
             // --- Results tab: read-only CAPE_OUTPUT parameters (from the last run) ---
@@ -230,6 +236,8 @@ namespace OPBlocks.Core
                 if (UnitBase.IsInputParameter(p)) continue;
                 double v = ToDouble(((ICapeParameter)p).value);
                 if (Math.Abs(v) > 0) anyComputed = true;
+                string section = ParamGroups.SectionStartingAt(_unit.BlockCode, p.ComponentName, resultsTab: true);
+                if (section != null) AddSectionRow(_resultsTable, section, 3);
                 AddResultRow(p, v);
             }
             _resultsHint.Text = anyComputed
@@ -240,17 +248,76 @@ namespace OPBlocks.Core
             _resultsTable.ResumeLayout();
         }
 
+        /// <summary>
+        /// Short display label: the parameter's human description trimmed at its
+        /// first parenthesis/colon (the tail moves to the tooltip), falling back
+        /// to the raw name. "Water permeability A (seawater ~1...)" -> "Water permeability A".
+        /// </summary>
+        private static string ShortLabel(CapeParameter p)
+        {
+            string d = p.ComponentDescription;
+            if (string.IsNullOrWhiteSpace(d)) return p.ComponentName;
+            int cut = d.IndexOfAny(new[] { '(', ':' , ';' });
+            string s = (cut > 0 ? d.Substring(0, cut) : d).Trim().TrimEnd(',', '.', ' ');
+            return s.Length > 0 ? s : p.ComponentName;
+        }
+
+        /// <summary>
+        /// Full tooltip: complete description + allowed range. Bounds are read
+        /// ONLY through ICapeRealParameterSpec (raw stored values) — the public
+        /// RealParameter getters run the library's unit-conversion layer, which
+        /// mangles non-SI ranges and pops modal "Unit Warning!" boxes for exotic
+        /// units (the 2026-07-20 dialog-storm / editor-"hang" incident). Never
+        /// read DefaultValue here for the same reason.
+        /// </summary>
+        private static string FullTip(CapeParameter p)
+        {
+            string tip = string.IsNullOrWhiteSpace(p.ComponentDescription)
+                ? p.ComponentName : p.ComponentDescription;
+            var rp = p as RealParameter;
+            if (rp != null)
+            {
+                var spec = (ICapeRealParameterSpec)p;
+                string unit = string.Equals(rp.Unit, "-") ? "" : (" " + (rp.Unit ?? "")).TrimEnd();
+                tip += "\nAllowed: " + Trim(spec.LowerBound) + " … " + Trim(spec.UpperBound) + unit;
+            }
+            return tip;
+        }
+
+        /// <summary>
+        /// Navy section header row (P3 grouping). A single-cell auto-sized label —
+        /// no docking, no anchoring, no column span: any width-negotiating child
+        /// (incl. a span into the percent column) makes this auto-size table hang
+        /// in a layout feedback loop (caught by the render watchdog test).
+        /// </summary>
+        private void AddSectionRow(TableLayoutPanel table, string title, int columns)
+        {
+            var lbl = new Label
+            {
+                Text = title.ToUpperInvariant(),
+                UseMnemonic = false, // titles contain '&' ("RECOVERY & DESIGN TARGETS")
+                AutoSize = true,
+                Margin = new Padding(1, 14, 3, 3),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = Accent
+            };
+            table.Controls.Add(lbl, 0, table.RowCount);
+            table.RowCount++;
+        }
+
         private void AddResultRow(CapeParameter p, double value)
         {
             int row = _resultsTable.RowCount;
             var name = new Label
             {
-                Text = p.ComponentDescription ?? p.ComponentName,
+                Text = ShortLabel(p),
                 AutoSize = true,
+                MaximumSize = new Size(320, 0),
                 Margin = new Padding(3, 7, 3, 6),
                 Font = new Font("Segoe UI", 9f),
-                ForeColor = Color.FromArgb(34, 48, 44)
+                ForeColor = Color.FromArgb(34, 44, 56)
             };
+            _tips.SetToolTip(name, FullTip(p));
             _resultsTable.Controls.Add(name, 0, row);
 
             var val = new Label
@@ -295,30 +362,42 @@ namespace OPBlocks.Core
 
             var name = new Label
             {
-                Text = p.ComponentName,
+                Text = ShortLabel(p),
                 AutoSize = true,
+                MaximumSize = new Size(276, 0), // wraps instead of touching the value column
                 Margin = new Padding(3, 8, 3, 6),
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(34, 48, 44)
+                ForeColor = Color.FromArgb(34, 44, 56)
             };
+            string tip = FullTip(p);
+            _tips.SetToolTip(name, tip);
             _table.Controls.Add(name, 0, row);
 
             Control input = CreateInput(p, out string unit, out string info);
             input.Margin = new Padding(3, 5, 3, 4);
+            _tips.SetToolTip(input, tip);
             _table.Controls.Add(input, 1, row);
 
-            var unitLbl = new Label { Text = unit ?? "", AutoSize = true, Margin = new Padding(3, 8, 3, 6), ForeColor = Color.FromArgb(91, 106, 102) };
+            var unitLbl = new Label
+            {
+                Text = string.Equals(unit, "-") ? "" : (unit ?? ""),
+                AutoSize = true,
+                MaximumSize = new Size(84, 0),
+                Margin = new Padding(3, 8, 3, 6),
+                ForeColor = Color.FromArgb(96, 112, 128)
+            };
             _table.Controls.Add(unitLbl, 2, row);
 
             var infoLbl = new Label
             {
-                Text = info ?? p.ComponentDescription ?? "",
+                Text = info ?? "",
                 AutoSize = true,
-                MaximumSize = new Size(180, 0),
+                MaximumSize = new Size(170, 0),
                 Margin = new Padding(3, 8, 3, 6),
-                ForeColor = Color.FromArgb(140, 150, 143),
+                ForeColor = Color.FromArgb(140, 148, 158),
                 Font = new Font("Segoe UI", 8f)
             };
+            _tips.SetToolTip(infoLbl, tip);
             _table.Controls.Add(infoLbl, 3, row);
 
             _table.RowCount++;

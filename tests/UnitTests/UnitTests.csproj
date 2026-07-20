@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <IsPackable>false</IsPackable>
     <ComVisible>false</ComVisible>
     <!-- xUnit's entry point conflicts with the solution-wide GenerateAssemblyInfo only if
