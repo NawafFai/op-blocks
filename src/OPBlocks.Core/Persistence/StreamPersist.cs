@@ -26,22 +26,33 @@ namespace OPBlocks.Core.Persistence
                 stream.Write(data, data.Length, IntPtr.Zero);
         }
 
-        /// <summary>Reads a length-prefixed block previously written by <see cref="WriteBlock"/>.</summary>
+        /// <summary>
+        /// Reads a length-prefixed block previously written by <see cref="WriteBlock"/>.
+        /// Returns null for a completely EMPTY stream — hosts legitimately call Load
+        /// on instances that were never saved (template/palette blocks), and that is
+        /// "no saved state, keep defaults", not corruption. Only a TRUNCATED stream
+        /// (some bytes, then EOF mid-structure) is an error.
+        /// </summary>
         public static byte[] ReadBlock(IStream stream)
         {
             byte[] len = new byte[4];
-            ReadFully(stream, len, 4);
+            int got = ReadUpTo(stream, len, 4);
+            if (got == 0) return null; // empty stream — no saved state
+            if (got < 4)
+                throw new EndOfStreamException("Unexpected end of OP-Blocks persistence stream.");
             int count = BitConverter.ToInt32(len, 0);
             if (count < 0 || count > 64 * 1024 * 1024)
                 throw new IOException("Corrupt OP-Blocks persistence stream (implausible length " + count + ").");
             byte[] data = new byte[count];
-            ReadFully(stream, data, count);
+            if (ReadUpTo(stream, data, count) < count)
+                throw new EndOfStreamException("Unexpected end of OP-Blocks persistence stream.");
             return data;
         }
 
-        private static void ReadFully(IStream stream, byte[] buffer, int count)
+        /// <summary>Reads up to <paramref name="count"/> bytes; returns how many were actually read (stops at EOF).</summary>
+        private static int ReadUpTo(IStream stream, byte[] buffer, int count)
         {
-            if (count == 0) return;
+            if (count == 0) return 0;
             IntPtr pRead = Marshal.AllocHGlobal(sizeof(int));
             try
             {
@@ -52,11 +63,11 @@ namespace OPBlocks.Core.Persistence
                     byte[] tmp = new byte[count - total];
                     stream.Read(tmp, tmp.Length, pRead);
                     int got = Marshal.ReadInt32(pRead);
-                    if (got <= 0)
-                        throw new EndOfStreamException("Unexpected end of OP-Blocks persistence stream.");
+                    if (got <= 0) break;
                     Array.Copy(tmp, 0, buffer, total, got);
                     total += got;
                 }
+                return total;
             }
             finally
             {
