@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Standalone P5 regression: exercises the REAL AspenLibraryRegistrar
+       against a sandbox HKCU key (never the live Aspen key). Not part of the
+       net48 UnitTests suite (the Manager targets net8-windows). Run with:
+       dotnet run  in tests/AspenLibraryTest  -c Release -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\OPBlocksManager\Services\AspenLibraryRegistrar.cs" />
+  </ItemGroup>
+</Project>

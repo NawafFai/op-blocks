@@ -21,6 +21,7 @@ namespace OPBlocksManager
         public ObservableCollection<BlockRowViewModel> Blocks { get; } = new ObservableCollection<BlockRowViewModel>();
 
         private readonly AspenTemplateInstaller _aspenTemplate = new AspenTemplateInstaller();
+        private readonly AspenLibraryRegistrar _aspenLibrary = new AspenLibraryRegistrar();
         private readonly DwsimAdapterInstaller _dwsim = new DwsimAdapterInstaller();
 
         public ICommand RefreshCommand { get; }
@@ -95,12 +96,19 @@ namespace OPBlocksManager
 
         private void EnableAspen()
         {
-            var r = _aspenTemplate.Install();
-            AppendLog("Enable in Aspen: " + r.Message);
-            Status = r.Success ? "CAPE-OPEN template installed for Aspen." : "Enable in Aspen failed — see log.";
-            System.Windows.MessageBox.Show(r.Message,
-                r.Success ? "ONE PROCESS — Aspen ready" : "ONE PROCESS",
-                MessageBoxButton.OK, r.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            // 1) auto-activate the OP Blocks palette in every new simulation (P5)…
+            var lib = _aspenLibrary.Enable();
+            AppendLog("Enable in Aspen (palette): " + lib.Message);
+            // 2) …and install the ready ONE PROCESS template for salt cases.
+            var tpl = _aspenTemplate.Install();
+            AppendLog("Enable in Aspen (template): " + tpl.Message);
+
+            bool ok = lib.Success || tpl.Success;
+            Status = ok ? "Aspen palette activated." : "Enable in Aspen failed — see log.";
+            string msg = lib.Message + "\n\n" + tpl.Message;
+            System.Windows.MessageBox.Show(msg,
+                ok ? "ONE PROCESS — Aspen ready" : "ONE PROCESS",
+                MessageBoxButton.OK, ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
 
         /// <summary>Install the native DWSIM adapter, or remove it if already enabled.</summary>
@@ -138,6 +146,9 @@ namespace OPBlocksManager
             BulkBusy = true;
             Status = "Removing all blocks (approve the UAC prompt)…";
             var outcome = await Task.Run(() => _registrar.RemoveAll(BlocksDirectory));
+            // Also retract the auto-activated Aspen palette entry (P5), so Remove is clean.
+            var lib = _aspenLibrary.Disable();
+            AppendLog("Remove all (Aspen palette): " + lib.Message);
             BulkBusy = false;
             HandleBulkOutcome("Remove all", outcome);
         }

@@ -37,6 +37,19 @@ if (Test-Path $adapter) {
 } else {
     Write-Warning "Native DWSIM adapter not built ($adapter) - 'Enable in DWSIM' won't ship. Build src\OPBlocks.DWSIM first."
 }
+# Aspen palette library (ONE PROCESS.apm) -> stage\aspen. The Manager's
+# "Enable in Aspen" registers this path as an Active HKCU library so the OP
+# Blocks palette auto-loads in every new simulation (P5).
+$apm = Join-Path $root "installer\aspen\ONE PROCESS.apm"
+if (Test-Path $apm) {
+    $aspenStage = Join-Path $stage "aspen"
+    New-Item -ItemType Directory -Force -Path $aspenStage | Out-Null
+    Copy-Item $apm $aspenStage -Force
+    Write-Host "    staged Aspen palette -> $aspenStage" -ForegroundColor DarkGray
+} else {
+    Write-Warning "Aspen palette not found ($apm) - 'Enable in Aspen' auto-activation won't ship."
+}
+
 New-Item -ItemType Directory -Force -Path (Join-Path $stage "scripts") | Out-Null
 Copy-Item (Join-Path $root "scripts\register-all-blocks.ps1") (Join-Path $stage "scripts") -Force
 Copy-Item (Join-Path $root "installer\README-EndUser.txt") (Join-Path $stage "README.txt") -Force
