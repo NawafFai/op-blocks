@@ -135,6 +135,10 @@ namespace OPBlocks.Desalination
                 ReportWarning("The property package did not supply molecular weights — " +
                               "TDS and salt-rejection results are unavailable this run.");
             if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, tK);
+            if (haveMw)
+                GuardFeedSalinity(f, mw, wi, 90000, 300000, "reverse osmosis",
+                    "Use evaporative/crystallization equipment for (super)saturated brines " +
+                    "(OP-MVC, OP-CRYST, OP-EVAPPOND) or dilute the feed.");
 
             var spec = new RoModel.Spec
             {
@@ -227,7 +231,8 @@ namespace OPBlocks.Desalination
             if (split.NdpBar <= 0)
                 ReportWarning(string.Format(
                     "No net driving pressure: the applied pressure ({0:0.#} bar) does not exceed the average " +
-                    "osmotic pressure ({1:0.#} bar). Raise the pressure or dilute/reduce recovery.",
+                    "osmotic pressure ({1:0.#} bar) — no permeate is produced this run. Raise the applied " +
+                    "pressure above {1:0.#} bar, dilute the feed, or reduce the recovery target.",
                     split.AppliedBarUsed, split.PiAvgBar));
 
             if (spec.CalcMode == RoModel.Mode.Rating && split.RecoveryCapped)
@@ -395,6 +400,10 @@ namespace OPBlocks.Desalination
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — TDS and salt-rejection results are unavailable this run.");
             if (haveMw) WarnIfPureWaterMethod(feed, f, wi, mw, tK);
+            if (haveMw)
+                GuardFeedSalinity(f, mw, wi, 60000, 300000, "nanofiltration",
+                    "Use reverse osmosis or evaporative equipment for concentrated brines, " +
+                    "or dilute the feed.");
 
             // per-component passage: multivalent ions rejected strongly, monovalent weakly
             double multiPass = 1.0 - ProcessOps.Clamp(R("MultivalRejection"), 0, 100) / 100.0;

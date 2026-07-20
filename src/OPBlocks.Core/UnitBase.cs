@@ -152,6 +152,45 @@ namespace OPBlocks.Core
                 "tables (Aspen STEAMNBS / STEAM-TA; DWSIM Steam Tables) cannot represent brine.");
         }
 
+        /// <summary>
+        /// Feed-salinity sanity guard (P1, v1.1.3): computes the feed TDS from mole
+        /// flows and molecular weights, then (a) above <paramref name="failPpm"/>
+        /// throws an actionable ECapeUser error — the process physically cannot
+        /// treat such a stream and property packages mis-extrapolate activity
+        /// beyond saturation — or (b) above <paramref name="warnPpm"/> reports a
+        /// non-blocking engineering warning. Pass 0 for <paramref name="warnPpm"/>
+        /// to disable the warning tier. No-op when molecular weights are missing
+        /// or the stream carries no mass. Never a blank host error: the message
+        /// states the number, the limit, the reason and what to do instead.
+        /// </summary>
+        protected void GuardFeedSalinity(double[] feedMolS, double[] mwGmol, int waterIndex,
+                                         double warnPpm, double failPpm,
+                                         string processName, string alternative)
+        {
+            if (feedMolS == null || mwGmol == null || waterIndex < 0) return;
+            double totalKg = 0, saltKg = 0;
+            for (int i = 0; i < feedMolS.Length && i < mwGmol.Length; i++)
+            {
+                double kg = Math.Max(0.0, feedMolS[i]) * mwGmol[i];
+                totalKg += kg;
+                if (i != waterIndex) saltKg += kg;
+            }
+            if (totalKg <= 1e-30) return;
+            double ppm = saltKg / totalKg * 1e6;
+            if (failPpm > 0 && ppm >= failPpm)
+                throw new CapeComputationException(string.Format(
+                    "Feed salinity {0:0} ppm ({1:0.#} wt%) is beyond the physical envelope of {2} " +
+                    "(NaCl saturates near 26 wt% / ~360 g/L, where the osmotic pressure already " +
+                    "exceeds ~300 bar). {3} Property packages also mis-extrapolate activity beyond " +
+                    "saturation, so results at this composition would be meaningless.",
+                    ppm, ppm / 1e4, processName, alternative));
+            if (warnPpm > 0 && ppm >= warnPpm)
+                ReportWarning(string.Format(
+                    "Feed salinity {0:0} ppm ({1:0.#} wt%) is beyond the typical envelope of {2}; " +
+                    "results are an extrapolation — expect a very high osmotic pressure and little " +
+                    "or no product.", ppm, ppm / 1e4, processName));
+        }
+
         public sealed override void OnCalculate()
         {
             _results.Clear();
@@ -159,6 +198,12 @@ namespace OPBlocks.Core
             try
             {
                 Compute();
+                // Success breadcrumb: a host-side failure AFTER our Calculate (e.g.
+                // on outlet-stream post-processing) used to be indistinguishable
+                // from a silent crash inside the block — this line pins the boundary.
+                OpLog.Info(BlockCode, _reportWarnings.Count == 0
+                    ? "Calculate completed"
+                    : "Calculate completed with " + _reportWarnings.Count + " warning(s)");
             }
             catch (CapeUserException ex)
             {

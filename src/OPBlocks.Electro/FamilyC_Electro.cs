@@ -105,6 +105,10 @@ namespace OPBlocks.Electro
             if (!haveMw)
                 ReportWarning("The property package did not supply molecular weights — TDS results are unavailable this run.");
             if (haveMw) WarnIfPureWaterMethod(dIn, df, wi, mw, Td);
+            if (haveMw)
+                GuardFeedSalinity(df, mw, wi, 100000, 300000, "electrodialysis",
+                    "Use evaporative/crystallization equipment for near-saturated brines " +
+                    "(OP-EVAPPOND, OP-CRYST) or dilute the diluate feed.");
 
             var spec = new EdModel.Spec
             {
