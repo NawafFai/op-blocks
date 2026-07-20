@@ -24,13 +24,22 @@ class P5Test
     {
         try { Registry.CurrentUser.DeleteSubKeyTree(@"Software\OPBlocksTest", false); } catch { }
 
-        // seed: engine 40.0 with an existing ASPEN-OWNED library (must survive) + CurVer (must be skipped)
+        // seed: engine 40.0 with (1) an ASPEN-OWNED library that must survive, and
+        // (2) a STALE ONE PROCESS entry the user added by hand (Active=0, pointing
+        // at an old ONE PROCESS.staged.apm) — mirrors the owner's real machine.
         using (var e = Registry.CurrentUser.CreateSubKey($@"{Sandbox}\40.0\Libraries\1"))
         {
             e.SetValue("Display Name", "Ultrafiltration", RegistryValueKind.String);
             e.SetValue("Path", @"C:\Aspen\Examples\Ultrafiltration.apm", RegistryValueKind.String);
             e.SetValue("Active", 0, RegistryValueKind.DWord);
             e.SetValue("Position", 0, RegistryValueKind.DWord);
+        }
+        using (var e = Registry.CurrentUser.CreateSubKey($@"{Sandbox}\40.0\Libraries\2"))
+        {
+            e.SetValue("Display Name", "ONE PROCESS", RegistryValueKind.String);
+            e.SetValue("Path", @"C:\Users\Public\OPBlocks\ONE PROCESS.staged.apm", RegistryValueKind.String);
+            e.SetValue("Active", 0, RegistryValueKind.DWord);
+            e.SetValue("Position", 1, RegistryValueKind.DWord);
         }
         Registry.CurrentUser.CreateSubKey($@"{Sandbox}\CurVer").Dispose();
 
@@ -54,15 +63,16 @@ class P5Test
 
         var r1 = reg.Enable();
         Check(r1.Success, "Enable() succeeds: " + r1.Message);
+
+        // the stale ONE PROCESS entry (slot 2) must be UPDATED IN PLACE, not duplicated
         using (var ours = Entry("40.0", "2"))
         {
-            Check(ours != null, "our entry created at a new slot");
+            Check(ours != null, "existing ONE PROCESS entry reused (slot 2)");
             if (ours != null)
             {
-                Check((ours.GetValue("Display Name") as string) == "OP Blocks", "Display Name = OP Blocks");
-                Check(((string)ours.GetValue("Path")).EndsWith(@"aspen\ONE PROCESS.apm"), "Path -> deployed apm");
-                Check(ours.GetValueKind("Active") == RegistryValueKind.DWord && (int)ours.GetValue("Active") == 1, "Active = 1 (DWORD)");
-                Check(ours.GetValueKind("Position") == RegistryValueKind.DWord, "Position is a DWORD");
+                Check((ours.GetValue("Display Name") as string) == "ONE PROCESS", "Display Name = ONE PROCESS");
+                Check(((string)ours.GetValue("Path")).EndsWith(@"aspen\ONE PROCESS.apm"), "stale path corrected -> deployed apm");
+                Check(ours.GetValueKind("Active") == RegistryValueKind.DWord && (int)ours.GetValue("Active") == 1, "Active flipped to 1 (DWORD)");
             }
         }
         using (var aspen = Entry("40.0", "1"))
@@ -75,7 +85,7 @@ class P5Test
             int mine = 0;
             foreach (var idx in libs.GetSubKeyNames())
                 using (var e = libs.OpenSubKey(idx))
-                    if ((e.GetValue("Display Name") as string) == "OP Blocks") mine++;
+                    if ((e.GetValue("Display Name") as string) == "ONE PROCESS") mine++;
             Check(mine == 1, "Enable() is idempotent (no duplicate entry)");
         }
 

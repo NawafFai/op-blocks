@@ -22,7 +22,11 @@ namespace OPBlocksManager.Services
     /// </summary>
     public sealed class AspenLibraryRegistrar
     {
-        public const string DisplayName = "OP Blocks";
+        // Aspen shows the .apm's LIBRARY name in Manage Libraries ("ONE PROCESS");
+        // "OP Blocks" is the palette CATEGORY/tab inside it. Use the library name so
+        // a fresh registration matches (and updates) an entry the user added by hand,
+        // instead of creating a confusing duplicate.
+        public const string DisplayName = "ONE PROCESS";
         private const string DefaultAspenKey = @"Software\AspenTech\Aspen Plus";
 
         // Overridable so the registry mechanics can be exercised against a sandbox
@@ -158,13 +162,20 @@ namespace OPBlocksManager.Services
             return any;
         }
 
-        /// <summary>Our entry is recognised by Display Name or by an OP-Blocks .apm path — never Aspen's own.</summary>
+        /// <summary>
+        /// Recognises our entry — including one the user added by hand — by the
+        /// library name ("ONE PROCESS" or the "OP Blocks" category) or by any
+        /// ONE PROCESS*.apm path (covers older ONE PROCESS.staged.apm registrations).
+        /// Never matches Aspen's own libraries, so their entries are untouched.
+        /// </summary>
         private static bool IsOurs(RegistryKey entry)
         {
             string name = entry.GetValue("Display Name") as string ?? "";
             string path = entry.GetValue("Path") as string ?? "";
-            return string.Equals(name, DisplayName, StringComparison.OrdinalIgnoreCase)
-                || path.IndexOf("ONE PROCESS.apm", StringComparison.OrdinalIgnoreCase) >= 0;
+            return name.Equals("ONE PROCESS", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("OP Blocks", StringComparison.OrdinalIgnoreCase)
+                || path.IndexOf(@"\ONE PROCESS", StringComparison.OrdinalIgnoreCase) >= 0
+                   && path.EndsWith(".apm", StringComparison.OrdinalIgnoreCase);
         }
 
         private List<string> AspenEngineVersions()
