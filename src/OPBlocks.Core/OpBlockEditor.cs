@@ -29,9 +29,10 @@ namespace OPBlocks.Core
         private Panel _resultsScroll;
         private Label _resultsHint;
 
-        private static readonly Color Accent = ColorTranslator.FromHtml("#0E7C66");
-        private static readonly Color AccentSoft = Color.FromArgb(220, 239, 234);
-        private static readonly Color PanelBg = Color.FromArgb(244, 246, 245);
+        // ONE PROCESS brand navy + blue (owner-chosen 2026-07-18; matches the Manager)
+        private static readonly Color Accent = ColorTranslator.FromHtml("#1B3A5C");
+        private static readonly Color AccentSoft = Color.FromArgb(191, 219, 245);
+        private static readonly Color PanelBg = Color.FromArgb(244, 246, 248);
 
         public OpBlockEditor(UnitBase unit)
         {
@@ -41,9 +42,25 @@ namespace OPBlocks.Core
             BuildRows();
         }
 
+        /// <summary>
+        /// The purpose sentence: the rich [CapeDescription] attribute text
+        /// ("Reverse osmosis: solution-diffusion flux ...") stripped of its name
+        /// prefix. ComponentDescription itself only carries the short name.
+        /// </summary>
+        private string PurposeLine()
+        {
+            string d = null;
+            object[] attrs = _unit.GetType().GetCustomAttributes(typeof(CapeDescriptionAttribute), false);
+            if (attrs.Length > 0) d = ((CapeDescriptionAttribute)attrs[0]).Description;
+            if (string.IsNullOrEmpty(d)) d = _unit.ComponentDescription ?? "";
+            int i = d.IndexOf(':');
+            string p = i >= 0 && i + 1 < d.Length ? d.Substring(i + 1).Trim() : d;
+            return p.Length > 0 ? char.ToUpperInvariant(p[0]) + p.Substring(1) : "ONE PROCESS block";
+        }
+
         private void InitializeForm()
         {
-            Text = _unit.BlockCode + "  —  Configure / إعداد";
+            Text = BlockCatalog.DisplayTitle(_unit.BlockCode) + "  —  Configure / إعداد";
             Font = new Font("Segoe UI", 9f);
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(600, 440);
@@ -53,32 +70,49 @@ namespace OPBlocks.Core
             MaximizeBox = false;
             MinimizeBox = false;
 
-            // --- header (brand bar) ---
-            var header = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Accent };
+            // --- header (brand bar): who am I, what do I do, when to use me (P2) ---
+            var header = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = Accent };
             Control logo = BuildLogo();
             logo.Size = new Size(42, 42);
-            logo.Location = new Point(14, 12);
+            logo.Location = new Point(14, 24);
+            BlockCatalog.Info id = BlockCatalog.For(_unit.BlockCode);
             var title = new Label
             {
-                Text = _unit.ComponentName,
+                Text = BlockCatalog.DisplayTitle(_unit.BlockCode),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 13f, FontStyle.Bold),
                 AutoSize = true,
-                Location = new Point(62, 11),
+                Location = new Point(62, 10),
                 BackColor = Color.Transparent
             };
-            var subtitle = new Label
+            var purpose = new Label
             {
-                Text = "ONE PROCESS Blocks  ·  " + _unit.BlockCode,
+                Text = PurposeLine(),
                 ForeColor = AccentSoft,
                 Font = new Font("Segoe UI", 8.5f),
-                AutoSize = true,
+                AutoSize = false,
+                AutoEllipsis = true,
+                Size = new Size(578, 16),
                 Location = new Point(62, 38),
+                BackColor = Color.Transparent
+            };
+            var hint = new Label
+            {
+                Text = id.TypicalUse == null
+                    ? "ONE PROCESS Blocks  ·  " + id.Family
+                    : id.Family + "  ·  Typical use: " + id.TypicalUse,
+                ForeColor = AccentSoft,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
+                AutoSize = false,
+                AutoEllipsis = true,
+                Size = new Size(578, 16),
+                Location = new Point(62, 58),
                 BackColor = Color.Transparent
             };
             header.Controls.Add(logo);
             header.Controls.Add(title);
-            header.Controls.Add(subtitle);
+            header.Controls.Add(purpose);
+            header.Controls.Add(hint);
 
             // --- footer (buttons) ---
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 54, BackColor = PanelBg };
