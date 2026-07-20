@@ -98,6 +98,20 @@ def _shape_cmds(el, vb):
     elif tag == "path":
         for poly in _flatten_path(el.get("d", ""), vb):
             out += _poly(poly)
+    elif tag == "text":
+        # Aspen draws icon labels with Path.Text(x,y,"s",angle,"font",size,0,-1).
+        # This is what carries the baked-in block code (P4) onto the flowsheet —
+        # the only place a CAPE-OPEN block's identity can live on its body.
+        x = float(el.get("x", 0)); y = float(el.get("y", 0))
+        xm, ym = _map(x, y, vb)
+        s = "".join(el.itertext()).strip().replace('"', "'")
+        # SVG font-size is in viewBox units; Aspen size is in icon-space units.
+        fs = float(el.get("font-size", 12)) / vb * MARGIN
+        anchor = (el.get("text-anchor") or "start").strip()
+        # Aspen anchors text at the left; nudge for centre/end so the code stays centred.
+        xm -= {"middle": 0.5, "end": 1.0}.get(anchor, 0.0) * fs * 0.55 * max(1, len(s))
+        out.append('call Path.Text(%s,%s,"%s",0,"Arial",%s,0,-1)'
+                   % (_fmt(xm), _fmt(ym), s, _fmt(fs)))
     return out
 
 
@@ -202,6 +216,11 @@ def inject(apm_path, model_name, svg_path, out_path=None):
     if not out_path:
         tmp = apm_path + ".tmp"
         _write_compound(tmp, streams)
+        # StgCreateDocfile keeps the OLE handle alive until the COM objects are
+        # collected; force it before os.replace or Windows reports a sharing
+        # violation on the .tmp (seen 2026-07-20).
+        import gc
+        gc.collect()
         os.replace(tmp, apm_path)
     else:
         _write_compound(out_path, streams)
