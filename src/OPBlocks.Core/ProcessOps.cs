@@ -41,7 +41,7 @@ namespace OPBlocks.Core
         /// Splits <paramref name="feed"/> into <paramref name="product"/> and
         /// <paramref name="reject"/> by a per-component fraction routed to product,
         /// setting each outlet at the given T,P. Conserves every component (mass balance
-        /// closes exactly). Skips a zero-flow outlet gracefully.
+        /// closes exactly). Zero-flow outlets are still set (never left unset).
         /// </summary>
         public static void SplitByRecovery(
             ThermoProxy feed, ThermoProxy product, ThermoProxy reject,
@@ -74,13 +74,20 @@ namespace OPBlocks.Core
             }
         }
 
-        /// <summary>Sets both split outlets at their T,P, skipping a zero-flow outlet gracefully.</summary>
+        /// <summary>
+        /// Sets both split outlets at their T,P. Every connected outlet is ALWAYS
+        /// set, including zero-flow ones (composition + T,P + zero total flow, no
+        /// flash) — a host must never be left with an unset outlet stream: Aspen's
+        /// post-Calculate handling of a never-set outlet fails with the cryptic
+        /// "CAPE-OPEN UNIT CALCULATE CALL FAILED. SEE HISTORY FOR DETAIL."
+        /// (root cause of the 2026-07-20 zero-permeate finding).
+        /// </summary>
         public static void SetSplitOutlets(
             ThermoProxy product, ThermoProxy reject, double[] prod, double[] rej,
             double productTempK, double productPressPa, double rejectTempK, double rejectPressPa)
         {
-            if (product != null && Sum(prod) > 1e-30) product.SetOutletTP(prod, productTempK, productPressPa);
-            if (reject != null && Sum(rej) > 1e-30) reject.SetOutletTP(rej, rejectTempK, rejectPressPa);
+            if (product != null) product.SetOutletTP(prod, productTempK, productPressPa);
+            if (reject != null) reject.SetOutletTP(rej, rejectTempK, rejectPressPa);
         }
 
         public static double Clamp01(double x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }

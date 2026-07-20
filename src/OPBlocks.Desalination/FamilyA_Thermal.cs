@@ -125,8 +125,10 @@ namespace OPBlocks.Desalination
 
             EvapPondModel.Result res = EvapPondModel.Solve(spec, f, wi, haveMw ? mw : null, feedM3s);
 
-            // vapour leaves at ambient; brine stays at the feed temperature/pressure
-            if (ProcessOps.Sum(res.VaporMol) > 1e-30) vap.SetOutletTP(res.VaporMol, R("AirTemp") + 273.15, p);
+            // vapour leaves at ambient; brine stays at the feed temperature/pressure.
+            // Always set the vapour outlet, even at zero evaporation — an unset
+            // outlet fails the host's post-Calculate stream handling (P1 2026-07-20).
+            vap.SetOutletTP(res.VaporMol, R("AirTemp") + 273.15, p);
             conc.SetOutletTP(res.ConcMol, tK, p);
 
             EmitWarnings(res);

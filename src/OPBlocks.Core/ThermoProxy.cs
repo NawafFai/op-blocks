@@ -238,6 +238,14 @@ namespace OPBlocks.Core
         public void SetOutletTP(double[] componentMoleFlows, double temperatureK, double pressurePa,
                                 PhaseHint phase = PhaseHint.Liquid)
         {
+            // A zero-flow outlet must still be SET (composition, T, P, zero flow):
+            // leaving an outlet untouched makes Aspen's post-Calculate stream
+            // handling fail with a blank "CAPE-OPEN UNIT CALCULATE CALL FAILED".
+            // Only the equilibrium call is skipped — there is nothing to flash.
+            double total = 0.0;
+            for (int i = 0; i < componentMoleFlows.Length; i++) total += componentMoleFlows[i];
+            bool zeroFlow = !(total > 1e-30);
+
             if (_mat11 != null)
             {
                 Guard("set outlet stream", () =>
@@ -247,7 +255,7 @@ namespace OPBlocks.Core
                     _mat11.SetOverallProp("pressure", null, new[] { pressurePa });
                     return 0;
                 });
-                Flash11("TP", phase);
+                if (!zeroFlow) Flash11("TP", phase);
                 return;
             }
             Guard("set outlet stream", () =>
@@ -257,7 +265,8 @@ namespace OPBlocks.Core
                 _mo.SetProp("pressure", Overall, null, Mixture, null, new[] { pressurePa });
                 return 0;
             });
-            Guard("TP flash", () => { _mo.CalcEquilibrium("TP", null); return 0; });
+            if (!zeroFlow)
+                Guard("TP flash", () => { _mo.CalcEquilibrium("TP", null); return 0; });
         }
 
         /// <summary>
