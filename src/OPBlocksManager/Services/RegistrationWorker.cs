@@ -162,6 +162,11 @@ namespace OPBlocksManager.Services
                     if (cd == null) continue;
                     if (!string.IsNullOrEmpty(b.CapeVersion)) cd.SetValue("CapeVersion", b.CapeVersion, RegistryValueKind.String);
                     if (b.VendorUrl != null) cd.SetValue("VendorURL", b.VendorUrl, RegistryValueKind.String);
+                    // NOTE (P2): do NOT rewrite the CapeDescription "Name" value.
+                    // Aspen stamps it into every placed block as MDLTYPE (proven in
+                    // saved .bkp files), and the ONE PROCESS.apm icon mapping keys on
+                    // model name == MDLTYPE == "OP-XX". A prettier palette label here
+                    // would corrupt future placements' identity.
                     log.AppendLine($"metadata fixed for {b.Code}");
                 }
             }

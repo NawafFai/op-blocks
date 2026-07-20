@@ -36,7 +36,7 @@ namespace OPBlocks.DWSIM
 
         private void BuildForm()
         {
-            Text = _adapter.Inner.BlockCode + "  (" +
+            Text = BlockCatalog.DisplayTitle(_adapter.Inner.BlockCode) + "  (" +
                    (_adapter.GraphicObject != null ? _adapter.GraphicObject.Tag : "?") +
                    ")  —  Configure / إعداد";
             Font = new Font("Segoe UI", 9f);

@@ -73,10 +73,15 @@ namespace OPBlocks.DWSIM
         //  IExternalUnitOperation — identity
         // ------------------------------------------------------------------
 
-        /// <summary>Palette display name, e.g. "Solar Evaporation Pond (OP-EVAPPOND)".</summary>
+        /// <summary>
+        /// Palette display name, e.g. "OP-EVAPPOND — Solar Evaporation Pond".
+        /// Code-first so every OP block clusters together in the palette and is
+        /// identifiable at a glance (P2); display-only — saved flowsheets re-bind
+        /// by <see cref="Description"/>, never by this string.
+        /// </summary>
         string IExternalUnitOperation.Name
         {
-            get { return Inner.ComponentDescription + " (" + Inner.BlockCode + ")"; }
+            get { return BlockCatalog.DisplayTitle(Inner.BlockCode); }
         }
 
         /// <summary>
@@ -122,6 +127,9 @@ namespace OPBlocks.DWSIM
                 {
                     DrawFallback(canvas, rect);
                 }
+                // P2: the block's code is ALWAYS visible on the flowsheet body —
+                // identity must not depend on the tag label or on recognising art.
+                DrawCodeBanner(canvas, rect);
             }
             catch (Exception ex)
             {
@@ -132,11 +140,36 @@ namespace OPBlocks.DWSIM
 
         private void DrawFallback(SKCanvas canvas, SKRect rect)
         {
-            using (var fill = new SKPaint { Color = new SKColor(0x0E, 0x7C, 0x66), Style = SKPaintStyle.Stroke, StrokeWidth = 2, IsAntialias = true })
-            using (var text = new SKPaint { Color = new SKColor(0x0E, 0x7C, 0x66), TextSize = 9, IsAntialias = true, TextAlign = SKTextAlign.Center })
+            // brand navy (matches the Manager redesign), not the legacy green
+            using (var fill = new SKPaint { Color = new SKColor(0x1B, 0x3A, 0x5C), Style = SKPaintStyle.Stroke, StrokeWidth = 2, IsAntialias = true })
+            using (var text = new SKPaint { Color = new SKColor(0x1B, 0x3A, 0x5C), TextSize = 9, IsAntialias = true, TextAlign = SKTextAlign.Center })
             {
                 canvas.DrawRoundRect(rect, 4, 4, fill);
                 canvas.DrawText("OP", rect.MidX, rect.MidY + 3, text);
+            }
+        }
+
+        /// <summary>Navy banner with the block code, drawn along the icon's bottom edge.</summary>
+        private void DrawCodeBanner(SKCanvas canvas, SKRect rect)
+        {
+            string code = Inner.BlockCode;
+            if (string.IsNullOrEmpty(code)) return;
+            float bh = Math.Max(11f, rect.Height * 0.24f);
+            var band = new SKRect(rect.Left, rect.Bottom - bh, rect.Right, rect.Bottom);
+            using (var bg = new SKPaint { Color = new SKColor(0x1B, 0x3A, 0x5C, 230), IsAntialias = true })
+                canvas.DrawRoundRect(band, 2, 2, bg);
+            using (var text = new SKPaint
+            {
+                Color = SKColors.White,
+                IsAntialias = true,
+                TextAlign = SKTextAlign.Center,
+                Typeface = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold)
+            })
+            {
+                text.TextSize = bh * 0.72f;
+                float w = text.MeasureText(code);
+                if (w > band.Width - 4f && w > 0f) text.TextSize *= (band.Width - 4f) / w;
+                canvas.DrawText(code, band.MidX, band.Bottom - bh * 0.30f, text);
             }
         }
 
