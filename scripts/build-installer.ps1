@@ -60,7 +60,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage "docs") | Out-Null
 Copy-Item (Join-Path $root "docs\block-catalog.html") (Join-Path $stage "docs") -Force -ErrorAction SilentlyContinue
 
 Write-Host "==> Portable ZIP" -ForegroundColor Cyan
-$zip = Join-Path $root "build\OPBlocks-1.1.2-portable.zip"
+$zip = Join-Path $root "build\OPBlocks-1.1.3-portable.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip
 Write-Host "    $zip" -ForegroundColor DarkGray

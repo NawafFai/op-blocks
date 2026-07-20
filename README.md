@@ -2,7 +2,7 @@
 
 **English** · [العربية](README.ar.md)
 
-![version](https://img.shields.io/badge/version-1.1.2-29ABE2)
+![version](https://img.shields.io/badge/version-1.1.3-29ABE2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![host](https://img.shields.io/badge/hosts-Aspen%20Plus%20%7C%20DWSIM-1B3A5C)
@@ -77,13 +77,20 @@ engineering warnings, and a "Model & References" section in the block report.
 ## Install (3 steps)
 
 1. **Download** the latest release (`OPBlocks_Setup.exe`, or
-   `OPBlocks-1.1.2-portable.zip` and extract anywhere).
+   `OPBlocks-1.1.3-portable.zip` and extract anywhere).
 2. **Register** the blocks (one UAC prompt): run the **OP-Blocks Manager** and
    click *Install all* (or *Enable in DWSIM* for the native DWSIM adapter), or from PowerShell:
    `powershell -ExecutionPolicy Bypass -File scripts\register-all-blocks.ps1`
 3. **Open your simulator** → Model Palette → **CAPE-OPEN** tab (Aspen Plus), or
    **Object Palette → CAPE-OPEN Unit Operation** (DWSIM) — all 25 OP blocks are
    there. Drag, drop, connect, run.
+
+Prefer a dedicated **OP Blocks** palette tab in Aspen? In the Manager click
+**Enable in Aspen** with Aspen **closed** — the palette then loads automatically
+in every new simulation (no Customize ▸ Manage Libraries by hand). Each block
+opens with its full name, purpose, and grouped, unit-labelled inputs; drop it on
+the flowsheet and its icon carries the block code so you always know which is
+which.
 
 Requirements: Windows 10/11 x64, .NET Framework 4.8 (in-box on Windows), and any
 CAPE-OPEN host. The blocks register as **standard CAPE-OPEN unit operations**,

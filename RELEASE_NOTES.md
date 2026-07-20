@@ -1,75 +1,78 @@
-# ONE PROCESS Blocks v1.1.2
+# ONE PROCESS Blocks v1.1.3
 
 **25 open-source CAPE-OPEN unit operations for water, desalination, lithium and
 green-energy flowsheets — for Aspen Plus and DWSIM.**
 
-An accuracy release: two host-integration defects fixed (one per host), two
-block-physics defects caught by a new live 25-block Aspen sweep — and, for the
-first time, **every block host-verified** on the shipped build.
+A stabilization & UX release. Every change came from using the product through
+the live Aspen GUI: smarter errors, clearer identity, a readable input form,
+redrawn icons, and a one-click Aspen palette that just appears.
 
 > ### 👉 Which file do I download?
 > **Most people: download `OPBlocks_Setup.exe`, run it, done.**
-> Prefer no installer? Download `OPBlocks-1.1.2-portable.zip` instead and run
+> Prefer no installer? Download `OPBlocks-1.1.3-portable.zip` instead and run
 > `INSTALL.bat`. *(The "Source code" zip/tar.gz are added automatically by
 > GitHub and are only for developers who want to build from source.)*
 
-## Fixed in v1.1.2
+## What's new in v1.1.3
 
-- **Aspen: "completed with physical property errors" on saline feeds.** Cause:
-  pure-water steam-table property methods (STEAMNBS / STEAM-TA) cannot represent
-  salt — the block's physics was identical on every method; only the property
-  system erred. The blocks now flash outlets in the known single phase (with an
-  all-phases fallback), which removes the steam-table error path entirely, and
-  raise **one clear warning** when the selected package returns near-pure-water
-  density for a clearly saline feed. Use ELECNRTL (or IDEAL/NRTL) for saline
-  cases — the bundled ONE PROCESS Aspen template already does.
-- **DWSIM: outlet streams showed zero flow** while the block computed correctly.
-  Cause: the thermo bridge preferred CAPE-OPEN Thermo 1.1 on streams that
-  implement both generations, starving DWSIM's 1.0 outlet path. The bridge now
-  prefers Thermo 1.0 with a 1.1 fallback (Aspen is 1.1-only and unaffected).
-  End-to-end mass balance in DWSIM: 7.8e-16.
-- **OP-CHLORALK over-produced mass by ~7 %** — the cathode's water consumption
-  (2 H₂O per Cl₂ produced) was never deducted. The model now does explicit
-  water bookkeeping; the live Aspen run closes to 1.4e-10.
-- **OP-PPT could crash the Aspen engine** when its sludge left bone-dry (an
-  Aspen-side pure-component data gap on dry-salt flashes). Sludge is now **wet**
-  by physics (`SludgeSolids` parameter, default 20 wt %) — honest and crash-free.
+**Errors that help instead of confuse.**
+- When the applied pressure doesn't exceed the feed's osmotic pressure, an
+  osmotic block (OP-RO/NF/FO/PRO) now **completes with zero permeate and a
+  clear warning** — honest physics, not the cryptic "CAPE-OPEN UNIT CALCULATE
+  CALL FAILED. SEE HISTORY". Raise the pressure or dilute the feed.
+- Feeding a brine beyond a process's physical envelope (e.g. RO on a
+  near-saturated feed — NaCl saturates ~26 wt%) is rejected early with a
+  message stating the salinity, the limit, and the right equipment to use
+  instead (evaporator / crystallizer).
 
-## Verified in this release (the headline)
+**Every block tells you what it is.**
+- The block editor opens with the full name, the physics it performs, and a
+  "typical use" hint. Parameters have descriptive labels with units, logical
+  sections, and a hover tooltip carrying the full description and allowed range.
+- In DWSIM the palette and flowsheet are code-first ("OP-RO — Reverse Osmosis")
+  with the block code drawn on the icon.
 
-| Evidence | Result |
-|---|---|
-| Live Aspen Plus V14 sweep, all 25 blocks, physics-appropriate case each | **25/25 converged**, exact mass balances (1e-9 … 1e-16) |
-| DWSIM host suite against the real engine | **ALL CHECKS PASSED (25 blocks)**, incl. a salt e2e: 35,000 ppm → 181 ppm, reported recovery == stream value |
-| Unit tests | **382/382 green** |
+**A redrawn icon system.** All 25 icons were redesigned so each block is
+recognizable at a glance — a distinct silhouette per process, the physics it
+does, a family colour, and the block code baked into the artwork.
 
-Every catalog entry in the README is now **✅ Host-verified**. We do not mark a
-block host-verified without evidence from a live converged run.
+**One-click Aspen palette.** "Enable in Aspen" now activates the OP Blocks
+palette automatically in every new simulation — no more Customize ▸ Manage
+Libraries by hand. Run it with Aspen closed (Aspen rewrites its library list on
+exit).
 
-## From v1.1.x
+**Choosing a property package.** The README now spells it out: IDEAL for dilute
+feeds, ELECNRTL for seawater and brines, and never the pure-water steam tables
+for anything saline.
 
-- **Enable in DWSIM — one click.** The Manager deploys the native DWSIM adapter
-  so all 25 blocks appear in DWSIM's palette **with their own icons**, under an
-  OP-BLOCKS grouping. One button, no elevation, matching one-click removal.
-- **Bulk actions.** *Install all* / *Remove all* register or unregister the
-  whole library in a **single** UAC prompt.
-- **Osmotic-pressure fix for molecular-salt packages** (v1.1.1): package water
-  activity is trusted only when it actually models the salt (γw < 1); otherwise
-  van 't Hoff with a stated assumption — no more 0 bar on NRTL/UNIQUAC.
-- **Redesigned Manager** in the ONE PROCESS navy + blue palette, bilingual
-  EN / AR (RTL) throughout.
+## Quality
+
+- OP-MIXER-DEMO no longer logs a spurious persistence error on every file open.
+- Unit suite **397** (from 382): P1 zero-permeate + envelope regressions, block
+  identity and form coverage, and a render watchdog that builds every block's
+  editor without hanging. A new registry regression covers the Aspen palette
+  activation. **OP-RO re-verified live** — anchor permeate 686.484746 kg/h,
+  zero regression across the whole series. DWSIM host suite: all 25 blocks pass,
+  now painting their new icons.
+
+## From v1.1.2
+
+- Host-accuracy fixes: the steam-table property-error trap (Aspen) and the
+  Thermo-1.0-first outlet fix (DWSIM); OP-CHLORALK mass balance and OP-PPT wet
+  sludge; a live 25/25 converged Aspen sweep.
 
 ## Install
 
 **Installer:** download `OPBlocks_Setup.exe`, run it, approve the Administrator
 prompt. All 25 blocks register automatically.
 
-**Portable:** download `OPBlocks-1.1.2-portable.zip`, right-click > Properties >
+**Portable:** download `OPBlocks-1.1.3-portable.zip`, right-click > Properties >
 Unblock, extract, and double-click `INSTALL.bat`.
 
-Then in **Aspen Plus**: Model Palette → **CAPE-OPEN** tab → drag any OP-… block.
-For **DWSIM**: open the Manager and click **Enable in DWSIM**, restart DWSIM, and
-the OP-BLOCKS group appears in the palette with icons.
+Then in **Aspen Plus**: run the Manager, click **Enable in Aspen** (with Aspen
+closed), open Aspen — the OP Blocks palette tab is already there. All 25 blocks
+also appear in the **CAPE-OPEN** palette tab. For **DWSIM**: click **Enable in
+DWSIM**, restart DWSIM, and the OP-BLOCKS group appears with icons.
 
 Requirements: Windows 10/11 x64, a CAPE-OPEN host (Aspen Plus V11–V14 or DWSIM),
 .NET Framework 4.8 (in-box).
@@ -77,7 +80,7 @@ Requirements: Windows 10/11 x64, a CAPE-OPEN host (Aspen Plus V11–V14 or DWSIM
 ## Assets
 
 - `OPBlocks_Setup.exe` — one-click installer (self-contained; ~50 MB)
-- `OPBlocks-1.1.2-portable.zip` — portable distribution with `INSTALL.bat`
+- `OPBlocks-1.1.3-portable.zip` — portable distribution with `INSTALL.bat`
 
 ## License
 

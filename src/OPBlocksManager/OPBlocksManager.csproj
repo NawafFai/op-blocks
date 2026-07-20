@@ -19,9 +19,9 @@
     <Company>ONE PROCESS Simulation</Company>
     <Description>Installs and manages the ONE PROCESS CAPE-OPEN unit operations for Aspen Plus V14.</Description>
     <Copyright>Copyright (c) 2026 ONE PROCESS Simulation. MIT License.</Copyright>
-    <Version>1.1.2</Version>
-    <FileVersion>1.1.2.0</FileVersion>
-    <AssemblyVersion>1.1.2.0</AssemblyVersion>
+    <Version>1.1.3</Version>
+    <FileVersion>1.1.3.0</FileVersion>
+    <AssemblyVersion>1.1.3.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

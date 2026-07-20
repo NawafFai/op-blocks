@@ -1,5 +1,51 @@
 # OP-Blocks Changelog
 
+## v1.1.3 — 2026-07-20 (stabilization & UX)
+
+A polish release focused on the real first-run experience — every finding
+came from using the product through the live Aspen GUI.
+
+### Smarter errors & user freedom
+- **A zero-permeate result is now honest physics, not a crash.** When the
+  applied pressure does not exceed the feed osmotic pressure, osmotic blocks
+  (OP-RO/NF/FO/PRO) complete with **zero permeate and a clear warning** instead
+  of the cryptic Aspen "CAPE-OPEN UNIT CALCULATE CALL FAILED. SEE HISTORY".
+  Root cause: a zero-flow outlet was left unset, which the host's
+  post-calculate stream handling then choked on. Every outlet is now always set.
+- **Physically impossible feeds are rejected early with an actionable message.**
+  Feeding a (near-)saturated brine to RO/NF/ED now fails with the salinity, the
+  limit (NaCl saturates ~26 wt%), and the right equipment to use instead — never
+  a blank host error.
+
+### Block identity in both simulators
+- **Every block now says who it is.** The editor header shows the full name,
+  the physics it performs, and a typical-use hint; DWSIM palette entries and
+  flowsheet blocks are code-first ("OP-RO — Reverse Osmosis") with the block
+  code drawn on the icon body.
+- **Redrawn icon system.** All 25 icons redesigned for distinct silhouettes
+  per process class, a functional detail, a family colour, and the block code
+  baked into the artwork (so identity survives on the Aspen flowsheet too).
+
+### Clearer input form
+- Descriptive labels with units, logical sections (Membrane / Operating
+  conditions / Energy recovery / …), and a hover tooltip with the full
+  description and allowed range on every parameter, on both Input and Results.
+
+### One-click Aspen palette
+- **"Enable in Aspen" now activates the OP Blocks palette automatically** in
+  every new simulation — no more Customize ▸ Manage Libraries by hand. (Run it
+  with Aspen closed; Aspen rewrites its library list on exit.)
+
+### Quality
+- OP-MIXER-DEMO no longer logs a spurious "end of persistence stream" error on
+  every file open (an empty saved-state stream is now read as "no state").
+- Fuller diagnostics: a "Calculate completed" breadcrumb makes a host-side
+  failure after our calculation attributable.
+- Unit suite **397** (was 382): +9 P1 regressions, +3 identity, +3 form,
+  + a render watchdog that builds every block's editor without hanging.
+  New net8 P5 registry regression (tests/AspenLibraryTest). OP-RO re-verified
+  live: anchor permeate 686.484746 kg/h, zero regression across the series.
+
 ## v1.1.2 — 2026-07-19
 
 ### Host-accuracy fixes (both hosts), root-caused and proven live
