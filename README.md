@@ -94,6 +94,27 @@ V12.1) — the same registration serves them all. Each block resolves the host
 thermodynamics automatically (Thermo 1.1 on Aspen, Thermo 1.0 on DWSIM), so the
 same block runs everywhere.
 
+## Choosing a property package (read this once)
+
+The blocks take **all** thermodynamics from the property package you select,
+so pick one that can represent your feed:
+
+| Feed | Aspen Plus | DWSIM |
+|---|---|---|
+| Fresh / dilute water | IDEAL | Ideal / NRTL |
+| Seawater, brines, electrolytes | **ELECNRTL** (the bundled ONE PROCESS template already uses it) | a native aqueous / electrolyte package |
+| ⛔ Never for saline feeds | STEAMNBS / STEAM-TA (pure-water steam tables) | Steam Tables |
+
+Two behaviors worth knowing:
+
+- If the applied pressure does not exceed the feed's osmotic pressure, an
+  osmotic block completes with **zero permeate and a clear warning** — that is
+  honest physics, not an error. Raise the pressure or dilute the feed.
+- A feed beyond a process's physical envelope (e.g. RO on a near-saturated
+  brine — NaCl saturates near 26 wt%) is rejected early with a message that
+  states the number, the limit, and the right equipment to use instead
+  (evaporator / crystallizer) — never a cryptic host error.
+
 The **OP-Blocks Manager** detects your simulators and installs the whole library
 in one click:
 
